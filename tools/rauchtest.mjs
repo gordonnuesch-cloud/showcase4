@@ -76,6 +76,16 @@ for (const [name, q] of [["21-2d-titel", "titel"], ["22-2d-e1-felsen", "einsatz=
   await tel.close();
 }
 
+// Live: Qualitaet schaltet von selbst zurueck. WebGL in Software ist langsam
+// genug, um einen schwachen Rechner zu spielen.
+await seite.goto(`${basis}?einsatz=1`);
+await seite.waitForFunction(() => document.documentElement.dataset.qualitaet === "niedrig", null, { timeout: 8000 })
+  .catch(() => fehler.push("Qualität: bei niedriger Bildrate keine Rückschaltung binnen 8 s"));
+await seite.waitForTimeout(2500);
+const nachRueckschaltung = await seite.evaluate(() => Math.round(window.__flug.zustand.fps));
+console.log(`Qualität: zurückgeschaltet, danach ${nachRueckschaltung} fps (WebGL in Software)`);
+await seite.screenshot({ path: `${ORDNER}/27-rueckschaltung-live.png` });
+
 // Live: Titel → Einsatz 1 per Leertaste
 await seite.goto(`${basis}?q=niedrig`);
 await seite.waitForTimeout(1500);

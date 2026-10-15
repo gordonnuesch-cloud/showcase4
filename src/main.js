@@ -177,13 +177,19 @@ function eingabe(dt) {
 }
 
 // --- Qualitaet: bei dauerhaft unter ~40 fps eine Stufe zurueck ---------------------
-let rahmen = [];
-function qualitaetPruefen(dt) {
-  rahmen.push(dt); if (rahmen.length > 90) rahmen.shift();
+// Gemessen wird die echte Bildzeit, nicht die fuer die Bewegung gedeckelte -
+// sonst sieht ein Rechner mit 2 Bildern pro Sekunde aus wie einer mit 20.
+// Entschieden wird nach 1,5 Sekunden, nicht nach einer festen Bildzahl.
+let rahmen = [], messBeginn = null;
+function qualitaetPruefen(ms, jetzt) {
+  if (ms > 1000) return;                       // Tab war im Hintergrund
+  rahmen.push(ms); if (rahmen.length > 90) rahmen.shift();
   const mittel = rahmen.reduce((a, b) => a + b, 0) / rahmen.length;
   zustand.fps = 1000 / mittel;
-  if (zustand.automatisch && rahmen.length === 90 && mittel > 25 && zustand.q === QUALITAET.hoch) {
-    zustand.q = QUALITAET.niedrig; rahmen = []; groesse();
+  messBeginn ??= jetzt;
+  if (zustand.automatisch && zustand.q === QUALITAET.hoch && jetzt - messBeginn > 1500 && rahmen.length >= 5 && mittel > 25) {
+    zustand.q = QUALITAET.niedrig; rahmen = []; messBeginn = null; groesse();
+    document.documentElement.dataset.qualitaet = "niedrig";
   }
 }
 
@@ -261,7 +267,7 @@ function bild(t, dt) {
   const licht = {
     sonne: aufSchirm(kam, st.sonne, W, H),
     farbe: st.sonnenFarbe.map((x) => Math.pow(x, 1 / 2.2)), himmel: st.horizont.map((x) => Math.pow(x, 1 / 2.2)),
-    waerme: zustand.waerme
+    waerme: zustand.waerme, sparsam: !zustand.q.voll
   };
   let blitz = 0;
   if (zustand.phase === "einsatz") blitz = hindernisseZeichnen(g2, W, H, einsatz, kam, licht, t);
@@ -366,8 +372,8 @@ if (fest !== null) {
 } else {
   let zuletzt = 0;
   const schleife = (ts) => {
+    if (zuletzt) qualitaetPruefen(ts - zuletzt, ts);
     const dt = Math.min(0.05, (ts - zuletzt) / 1000 || 0.016); zuletzt = ts;
-    qualitaetPruefen(dt * 1000);
     schritt(dt, testLenkung ?? eingabe(dt));
     bild(ts / 1000, dt);
     requestAnimationFrame(schleife);

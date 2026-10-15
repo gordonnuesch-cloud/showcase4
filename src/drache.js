@@ -131,15 +131,26 @@ function formZeichnen(g, W, H, f, t) {
 
 /**
  * Zeichnet den Drachen. f = Flugzustand,
- * licht = { sonne: [x,y]|null, farbe: [r,g,b] 0..1, himmel: [r,g,b] 0..1, waerme 0..1 }
+ * licht = { sonne: [x,y]|null, farbe: [r,g,b] 0..1, himmel: [r,g,b] 0..1, waerme 0..1, sparsam }
  */
 export function dracheZeichnen(g, W, H, f, licht, t) {
-  const [e, se] = ebenen(W, H);
+  // Sparsam (niedrige Stufe): die Ebenen in halber Aufloesung. Die Kanten
+  // werden etwas weicher, die Flaechenarbeit faellt auf ein Viertel.
+  const m = licht.sparsam ? 0.5 : 1;
+  const Wl = Math.ceil(W * m), Hl = Math.ceil(H * m);
+  const [e, se] = ebenen(Wl, Hl);
   const rgb = (c, a) => `rgba(${c.map((x) => Math.round(Math.min(1, x) * 255)).join(",")},${a})`;
 
+  // Alles Flaechige nur dort, wo der Drache sein kann: unteres Bild ab
+  // knapp ueber den Hoernern.
+  const sk = Math.min(H, W * 1.25) / 1000;
+  const oben = Math.max(0, Math.floor(H * 0.56 - 400 * sk));
+  const ol = Math.floor(oben * m), hl = Hl - ol;
+  const lage = () => { e.setTransform(m, 0, 0, m, 0, 0); e.translate(W / 2, H); e.rotate(f.rolle * 0.3); e.translate(-W / 2, -H); };
+
   // 1. Form in die Ebene
-  e.setTransform(1, 0, 0, 1, 0, 0); e.clearRect(0, 0, W, H);
-  e.save(); e.translate(W / 2, H); e.rotate(f.rolle * 0.3); e.translate(-W / 2, -H);
+  e.setTransform(1, 0, 0, 1, 0, 0); e.clearRect(0, ol, Wl, hl);
+  e.save(); lage();
   e.fillStyle = "#000";
   const geo = formZeichnen(e, W, H, f, t);
   e.restore();
@@ -148,22 +159,25 @@ export function dracheZeichnen(g, W, H, f, licht, t) {
   const s = geo.s;
   let dx = 0, dy = -1;
   if (licht.sonne) { const vx = licht.sonne[0] - geo.kx, vy = licht.sonne[1] - geo.ky; const l = Math.hypot(vx, vy) || 1; dx = vx / l; dy = vy / l; }
-  const breite = (licht.waerme > 0.5 ? 4 : 3) * s;
+  const breite = (licht.waerme > 0.5 ? 4 : 3) * s * Math.max(m, 0.75);
   se.globalCompositeOperation = "source-over";
-  se.clearRect(0, 0, W, H);
-  se.drawImage(ebene, 0, 0);
+  se.clearRect(0, ol, Wl, hl);
+  se.drawImage(ebene, 0, ol, Wl, hl, 0, ol, Wl, hl);
   se.globalCompositeOperation = "source-in";
   const saumFarbe = licht.waerme > 0.45 ? rgb(licht.farbe, 0.9) : `rgba(165,200,255,${0.55 + 0.3 * (1 - licht.waerme)})`;
-  se.fillStyle = saumFarbe; se.fillRect(0, 0, W, H);
+  se.fillStyle = saumFarbe; se.fillRect(0, ol, Wl, hl);
   se.globalCompositeOperation = "destination-out";
-  se.drawImage(ebene, -dx * breite, -dy * breite);
+  se.drawImage(ebene, 0, ol, Wl, hl, -dx * breite, ol - dy * breite, Wl, hl);
+  // Am Bildrand fehlt die verschobene Kopie - dort bliebe ein falscher Saum
+  const rand = Math.ceil(breite) + 1;
+  se.clearRect(0, ol, rand, hl); se.clearRect(Wl - rand, ol, rand, hl); se.clearRect(0, Hl - rand, Wl, rand);
 
   // 3. Koerper: fast schwarz, mit einem Hauch Himmelslicht von oben
   e.globalCompositeOperation = "source-in";
-  const koerper = e.createLinearGradient(0, H * 0.5, 0, H);
+  const koerper = e.createLinearGradient(0, Hl * 0.5, 0, Hl);
   koerper.addColorStop(0, rgb(licht.himmel.map((x) => x * 0.22), 1));
   koerper.addColorStop(1, "rgb(6,5,9)");
-  e.fillStyle = koerper; e.fillRect(0, 0, W, H);
+  e.fillStyle = koerper; e.fillRect(0, ol, Wl, hl);
   e.globalCompositeOperation = "source-over";
 
   // 4. Glut: feine Adern entlang der Halsseiten, im Herzschlag - nur bei Naehe
@@ -171,11 +185,12 @@ export function dracheZeichnen(g, W, H, f, licht, t) {
     const puls = 0.55 + 0.45 * Math.pow(Math.max(0, Math.sin(t * 2.3)), 5);
     e.save();
     e.globalCompositeOperation = "source-atop";
-    e.translate(W / 2, H); e.rotate(f.rolle * 0.3); e.translate(-W / 2, -H);
+    lage();
     e.lineCap = "round";
-    e.shadowColor = "rgba(255,110,30,1)"; e.shadowBlur = 16 * s * licht.waerme;
+    // Der weiche Schein ist teuer; sparsam nur eine etwas breitere Linie
+    if (!licht.sparsam) { e.shadowColor = "rgba(255,110,30,1)"; e.shadowBlur = 16 * s * licht.waerme; }
     e.strokeStyle = `rgba(255,${Math.round(120 + 70 * licht.waerme)},50,${(licht.waerme - 0.3) * 0.9 * puls})`;
-    e.lineWidth = 2.2 * s;
+    e.lineWidth = (licht.sparsam ? 3 : 2.2) * s;
     for (const seite of [-1, 1]) for (const lage of [0.55, 0.8]) {
       e.beginPath();
       for (let i = 0; i <= 20; i++) {
@@ -190,8 +205,8 @@ export function dracheZeichnen(g, W, H, f, licht, t) {
     e.restore();
   }
 
-  g.drawImage(ebene, 0, 0);
-  g.drawImage(saumEbene, 0, 0);
+  g.drawImage(ebene, 0, ol, Wl, hl, 0, oben, W, H - oben);
+  g.drawImage(saumEbene, 0, ol, Wl, hl, 0, oben, W, H - oben);
 }
 
 // --- Glut und Asche -------------------------------------------------------------

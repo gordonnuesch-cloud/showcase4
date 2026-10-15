@@ -23,7 +23,8 @@ out vec4 ausgabe;
 
 uniform vec2  uAufl;
 uniform float uZeit;
-uniform float uFlug;          // zurueckgelegte Strecke
+uniform vec2  uPos;           // Position in der Ebene (x, z)
+uniform float uHoehe;         // Flughoehe ueber der Grundlinie
 uniform vec3  uKamera;        // gieren, nicken, rollen (Bogenmass)
 uniform vec3  uSonne;         // Richtung zur Sonne (oder zum Mond)
 uniform vec3  uZenit, uHorizont, uSonnenFarbe, uWolkeHell, uWolkeDunkel, uDunst;
@@ -122,9 +123,10 @@ vec3 himmelsfarbe(vec3 rd) {
 // Gefaelle entsteht eine Oberflaeche, die die Sonne beleuchtet - so bekommen
 // die Wolkenkuppen Relief. Ueber uns faellt das Licht durch duenne Stellen.
 vec4 schicht(vec3 rd, float hoehe, float massstab, float tempo, float bedeckung, float deck, float streck, vec3 grund, int relief) {
+  hoehe -= uHoehe;
   if (rd.y * hoehe <= 0.0 || abs(rd.y) < 0.004) return vec4(0.0);
   float t = hoehe / rd.y;
-  vec2 p = rd.xz * t + vec2(0.0, uFlug * tempo);
+  vec2 p = rd.xz * t + uPos * tempo;
   p.x *= streck;
   p *= massstab;
   float drift = uZeit * 0.02;
@@ -174,7 +176,7 @@ vec4 schicht(vec3 rd, float hoehe, float massstab, float tempo, float bedeckung,
 // Silhouetten am Horizont und Verdeckung.
 const float OBEN = -0.75, UNTEN = -1.55;
 float relief(vec2 xz) {
-  vec2 p = (xz + vec2(0.0, uFlug)) * 0.38 + vec2(uZeit * 0.02, 0.0);
+  vec2 p = (xz + uPos) * 0.38 + vec2(uZeit * 0.02, 0.0);
   float k = kuppen(p, uOktaven);
   return UNTEN + (OBEN - UNTEN) * smoothstep(0.25, 1.05, k);
 }
@@ -183,7 +185,8 @@ vec4 wolkenmeer(vec3 rd, vec3 grund, vec3 dunst) {
   // Weiche Wolken statt harter Flaeche: entlang des Strahls wird Dichte
   // aufgesammelt, die unter der Kuppenoberflaeche weich ansteigt. Jede
   // Probe bekommt Licht nach Hoehe und einen Blick Richtung Sonne.
-  float t0 = OBEN / rd.y, t1 = UNTEN / rd.y;
+  vec3 ro = vec3(0.0, uHoehe, 0.0);
+  float t0 = (OBEN - uHoehe) / rd.y, t1 = (UNTEN - uHoehe) / rd.y;
   float dt = (t1 - t0) / 40.0;
   vec3 L = normalize(vec3(uSonne.x, min(uSonne.y, 0.5), uSonne.z));
   vec2 lv = normalize(L.xz + 1e-4) * 0.12;
@@ -196,7 +199,7 @@ vec4 wolkenmeer(vec3 rd, vec3 grund, vec3 dunst) {
   float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
   float t = t0 + dt * ign;
   for (int i = 0; i < 40; i++) {
-    vec3 p = rd * t;
+    vec3 p = ro + rd * t;
     float h = relief(p.xz);
     float dichteHier = clamp((h - p.y) / 0.22, 0.0, 1.0);
     if (dichteHier > 0.0) {
@@ -292,17 +295,18 @@ export function himmelErstellen(canvas) {
   gl.useProgram(prog);
   gl.bindVertexArray(gl.createVertexArray());
   const u = {};
-  for (const n of ["uAufl", "uZeit", "uFlug", "uKamera", "uSonne", "uZenit", "uHorizont", "uSonnenFarbe",
+  for (const n of ["uAufl", "uZeit", "uPos", "uHoehe", "uKamera", "uSonne", "uZenit", "uHorizont", "uSonnenFarbe",
     "uWolkeHell", "uWolkeDunkel", "uDunst", "uBedeckung", "uSterne", "uWaerme", "uOktaven", "uVoll", "uWand"]) u[n] = gl.getUniformLocation(prog, n);
 
   return {
     gl,
     /** Zeichnet ein Bild. st = Stimmung (Farben, Sonne, Bedeckung), q = Qualitaet. */
-    zeichnen(st, zeit, flug, kamera, q) {
+    zeichnen(st, zeit, pos, hoehe, kamera, q) {
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform2f(u.uAufl, canvas.width, canvas.height);
       gl.uniform1f(u.uZeit, zeit);
-      gl.uniform1f(u.uFlug, flug);
+      gl.uniform2f(u.uPos, pos[0], pos[1]);
+      gl.uniform1f(u.uHoehe, hoehe);
       gl.uniform3f(u.uKamera, kamera[0], kamera[1], kamera[2]);
       gl.uniform3fv(u.uSonne, st.sonne);
       for (const k of ["zenit", "horizont", "sonnenFarbe", "wolkeHell", "wolkeDunkel", "dunst"]) {

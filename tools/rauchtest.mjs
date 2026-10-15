@@ -22,19 +22,25 @@ const seite = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 seite.on("console", (m) => { if (m.type() === "error" && !/fonts\.(googleapis|gstatic)|ERR_INTERNET/.test(m.text())) fehler.push(m.text()); });
 seite.on("pageerror", (e) => fehler.push("pageerror: " + e.message));
 
+// Flugbilder: gleiche Kurve bei niedriger und hoher Bindung, dazu die Tageszeiten
 const bilder = [
-  ["01-morgengrauen", "zeit=0&waerme=0.5"], ["02-mittag", "zeit=1&waerme=0.5"], ["03-gewitter", "zeit=2&waerme=0.5"],
-  ["04-mondnacht", "zeit=3&waerme=0.5"], ["05-morgenrot", "zeit=4&waerme=0.5"],
-  ["10-mittag-kalt", "zeit=1&waerme=0"], ["11-mittag-warm", "zeit=1&waerme=1"],
-  ["12-abend-kalt", "zeit=4&waerme=0"], ["13-abend-warm", "zeit=4&waerme=1"]
+  ["01-morgenrot-bindung10", "zeit=4&bindung=10&lenk=0.6"], ["02-morgenrot-bindung90", "zeit=4&bindung=90&lenk=0.6"],
+  ["03-mittag-bindung70", "zeit=1&bindung=70&lenk=-0.4"], ["04-gewitter-bindung20", "zeit=2&bindung=20&lenk=0.3"],
+  ["05-mondnacht-bindung50", "zeit=3&bindung=50&lenk=0"], ["06-morgengrauen-bindung80", "zeit=0&bindung=80&lenk=-0.7"]
 ];
 for (const [name, q] of bilder) for (const stufe of ["hoch", "niedrig"]) {
-  if (stufe === "niedrig" && !/^0[25]|^1[03]/.test(name)) continue;
+  if (stufe === "niedrig" && !/^0[12]/.test(name)) continue;
   await seite.goto(`${basis}?${q}&q=${stufe}&t=40`);
   await seite.waitForFunction(() => document.documentElement.dataset.bereit === "1" || document.documentElement.dataset.webgl === "fehlt", null, { timeout: 30000 });
   if (await seite.evaluate(() => document.documentElement.dataset.webgl === "fehlt")) { fehler.push("WebGL2 fehlt im Testbrowser"); break; }
   await seite.screenshot({ path: `${ORDNER}/${name}-${stufe}.png` });
 }
+
+// Fuehlt sich Bindung an? Reaktionszeit muss mit der Bindung deutlich fallen
+const { reaktionszeit } = await import("../src/flug.js");
+const r0 = reaktionszeit(0), r100 = reaktionszeit(100);
+console.log(`Reaktionszeit: Bindung 0 → ${Math.round(r0 * 1000)} ms, Bindung 100 → ${Math.round(r100 * 1000)} ms`);
+if (!(r0 > r100 * 4)) fehler.push("Bindung verändert die Reaktion zu wenig");
 
 const namen = readdirSync(ORDNER).filter((n) => n.endsWith(".png")).sort();
 const blatt = await browser.newPage({ viewport: { width: 1600, height: 400 } });

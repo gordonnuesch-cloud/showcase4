@@ -29,5 +29,8 @@ Ansehen, auch in voller Größe: Artefakte wie Treppenlinien sieht man in der
 ```
 src/himmel.js     der Himmel: ein Fragment-Shader, Qualitätsstufen
 src/stimmung.js   Tageszeiten als Daten, Mischung mit der Wärme
-src/main.js       Vorschau (Tasten 1–5, ←/→, Q)
+src/flug.js       Flugmodell ohne Grafik; die Bindung wirkt als Verzögerung,
+                  Trägheit, Wendigkeit, Unruhe. Reine Funktionen, testbar.
+src/drache.js     Hals, Kopf, Flügel als 2D-Silhouette mit Saumlicht; Glut/Asche
+src/main.js       freier Flug (Pfeile/WASD/Ziehen, [ ] Bindung, 1–5, Q)
 ```

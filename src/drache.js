@@ -15,8 +15,8 @@ const dY = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, 0, -s, 0,
 const dX = (a) => { const c = Math.cos(a), s = Math.sin(a); return [1, 0, 0, 0, c, s, 0, -s, c]; };
 const dZ = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, s, 0, -s, c, 0, 0, 0, 1]; };
 
-/** Sonne in Schirmkoordinaten (Pixel), oder null, wenn sie hinter einem steht. */
-export function sonneAufSchirm(kamera, sonne, W, H) {
+/** Eine Richtung (Sonne, Hindernis) in Schirmkoordinaten (Pixel), oder null, wenn sie hinter einem liegt. */
+export function aufSchirm(kamera, sonne, W, H) {
   const m = mal(mal(dY(kamera[0]), dX(kamera[1])), dZ(kamera[2]));
   const mt = [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];   // Transponierte = Umkehrung
   const v = drehen(mt, sonne);

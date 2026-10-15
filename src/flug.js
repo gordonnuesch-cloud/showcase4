@@ -17,7 +17,7 @@ export function kennwerte(b) {
   return {
     verzoegerung: lerp(0.22, 0.0, k),     // Sekunden
     traegheit: lerp(0.55, 0.1, k),        // Zeitkonstante in Sekunden
-    wendigkeit: lerp(0.5, 1.4, k),        // Bogenmass pro Sekunde
+    wendigkeit: lerp(0.5, 1.1, k),        // Bogenmass pro Sekunde
     unruhe: lerp(0.35, 0.0, k),
     waerme: k * k * (3 - 2 * k)           // Stimmung im Bild
   };
@@ -26,7 +26,7 @@ export function kennwerte(b) {
 export function neuerFlug() {
   return {
     zeit: 0, kurs: 0, neigung: 0, rolle: 0, hoehe: 0, pos: [0, 0], tempo: 1.3,
-    puffer: [], folge: { x: 0, y: 0 }, kopf: 0, schlag: 0
+    puffer: [], folge: { x: 0, y: 0 }, kopf: 0, schlag: 0, hinweis: 0
   };
 }
 
@@ -56,8 +56,10 @@ export function fliegen(f, dt, eingabe, bindung) {
   f.hoehe = Math.max(-0.3, Math.min(1.2, f.hoehe + Math.sin(f.neigung) * f.tempo * dt * 0.8));
   f.pos[0] += Math.sin(f.kurs) * f.tempo * dt;
   f.pos[1] += Math.cos(f.kurs) * f.tempo * dt;
-  // Der Kopf nimmt die Richtung vorweg - aber nur, wenn er die Reiterin versteht
-  f.kopf += (jetzt.x * (0.4 + 0.6 * kw.waerme) - f.kopf) * Math.min(1, dt * (2 + 8 * kw.waerme));
+  // Der Kopf nimmt die Richtung vorweg - aber nur, wenn er die Reiterin versteht.
+  // Und er zeigt die Luecke, die er sieht (hinweis), nur wenn sie verbunden sind.
+  const ziel = jetzt.x * (0.4 + 0.6 * kw.waerme) + (f.hinweis || 0) * Math.max(0, kw.waerme - 0.3) * 1.1;
+  f.kopf += (Math.max(-1.2, Math.min(1.2, ziel)) - f.kopf) * Math.min(1, dt * (2 + 8 * kw.waerme));
   f.schlag += dt * (1.1 + Math.abs(sy) * 0.8);
   return kw;
 }

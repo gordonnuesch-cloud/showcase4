@@ -22,19 +22,37 @@ const seite = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 seite.on("console", (m) => { if (m.type() === "error" && !/fonts\.(googleapis|gstatic)|ERR_INTERNET/.test(m.text())) fehler.push(m.text()); });
 seite.on("pageerror", (e) => fehler.push("pageerror: " + e.message));
 
-// Flugbilder: gleiche Kurve bei niedriger und hoher Bindung, dazu die Tageszeiten
+// Freier Flug: gleiche Kurve bei niedriger und hoher Bindung, in beiden Stufen
 const bilder = [
-  ["01-morgenrot-bindung10", "zeit=4&bindung=10&lenk=0.6"], ["02-morgenrot-bindung90", "zeit=4&bindung=90&lenk=0.6"],
-  ["03-mittag-bindung70", "zeit=1&bindung=70&lenk=-0.4"], ["04-gewitter-bindung20", "zeit=2&bindung=20&lenk=0.3"],
-  ["05-mondnacht-bindung50", "zeit=3&bindung=50&lenk=0"], ["06-morgengrauen-bindung80", "zeit=0&bindung=80&lenk=-0.7"]
+  ["01-frei-bindung10", "frei&zeit=4&bindung=10&lenk=0.6", true], ["02-frei-bindung90", "frei&zeit=4&bindung=90&lenk=0.6", true],
+  // Einsaetze: vorgerechnet bis zur genannten Sekunde
+  ["03-e1-titel", "einsatz=1&uhr=3"], ["04-e1-ilvar", "einsatz=1&uhr=16"],
+  ["05-e1-felsen", "einsatz=1&uhr=29.5&bindung=30", true], ["06-e1-moment", "einsatz=1&uhr=50"],
+  ["07-e2-pfeile", "einsatz=2&uhr=26&bindung=60"], ["08-e3-blitz", "einsatz=3&uhr=41&bindung=20"],
+  ["09-e4-reiter", "einsatz=4&uhr=29&bindung=70"], ["10-e5-moment", "einsatz=5&uhr=52&bindung=80"]
 ];
-for (const [name, q] of bilder) for (const stufe of ["hoch", "niedrig"]) {
-  if (stufe === "niedrig" && !/^0[12]/.test(name)) continue;
+async function standbild(name, q, stufe) {
   await seite.goto(`${basis}?${q}&q=${stufe}&t=40`);
   await seite.waitForFunction(() => document.documentElement.dataset.bereit === "1" || document.documentElement.dataset.webgl === "fehlt", null, { timeout: 30000 });
-  if (await seite.evaluate(() => document.documentElement.dataset.webgl === "fehlt")) { fehler.push("WebGL2 fehlt im Testbrowser"); break; }
+  if (await seite.evaluate(() => document.documentElement.dataset.webgl === "fehlt")) { fehler.push("WebGL2 fehlt im Testbrowser"); return false; }
   await seite.screenshot({ path: `${ORDNER}/${name}-${stufe}.png` });
+  return true;
 }
+for (const [name, q, beide] of bilder) {
+  if (!await standbild(name, q, "hoch")) break;
+  if (beide) await standbild(name, q, "niedrig");
+}
+
+// Live: ein Moment oeffnet sich, eine Wahl mit der Pfeiltaste veraendert die Bindung
+await seite.goto(`${basis}?einsatz=1&uhr=49&q=niedrig`);
+await seite.waitForFunction(() => window.__flug?.einsatz.moment && window.__flug.einsatz.momentSeit > 1.8, null, { timeout: 30000 })
+  .catch(() => fehler.push("Live: der Moment bei 50 s öffnet sich nicht"));
+const vorher = await seite.evaluate(() => window.__flug.spiel.bindung);
+await seite.keyboard.press("ArrowRight");
+const nachher = await seite.evaluate(() => ({ b: window.__flug.spiel.bindung, offen: !!window.__flug.einsatz.moment }));
+if (nachher.b <= vorher || nachher.offen) fehler.push(`Live: Nähe zulassen wirkt nicht (Bindung ${vorher} → ${nachher.b})`);
+await seite.waitForTimeout(1500);
+await seite.screenshot({ path: `${ORDNER}/11-e1-folge-live.png` });
 
 // Fuehlt sich Bindung an? Reaktionszeit muss mit der Bindung deutlich fallen
 const { reaktionszeit } = await import("../src/flug.js");

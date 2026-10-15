@@ -3,6 +3,7 @@
 // keinen Zielrahmen; die Luecke sieht man - oder der Drache zeigt sie einem.
 
 import { aufSchirm } from "./drache.js";
+import { brennweite } from "./himmel.js";
 
 const richtung = (gier, nick) => [Math.sin(gier) * Math.cos(nick), Math.sin(nick), Math.cos(gier) * Math.cos(nick)];
 const zufall = (s) => { const x = Math.sin(s * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -15,7 +16,8 @@ const misch = (a, b, t) => a.map((x, i) => x + (b[i] - x) * t);
  */
 export function hindernisseZeichnen(g, W, H, e, kam, licht, t) {
   let blitzlicht = 0;
-  const s = H / 1000;
+  // Groessen nach der Brennweite: hochkant waeren sie sonst riesig
+  const s = brennweite(W, H) * H / 1.35 / 1000;
   for (const h of e.hindernisse) {
     // nah: 0 am Horizont, 1 bei Ankunft, darueber zieht es vorbei
     const nah = Math.max(0, 1 - (h.ankunft - e.uhr) / h.vorlauf);
@@ -42,12 +44,12 @@ export function hindernisseZeichnen(g, W, H, e, kam, licht, t) {
 function felsen(g, W, H, s, kam, gier, nah, k, farbe, sicht, t, seite, dunst) {
   const p = aufSchirm(kam, richtung(gier, -0.03 - zufall(k + 1) * 0.04), W, H);
   if (!p) return;
-  const hoch = H * (0.03 + 0.85 * Math.pow(Math.min(nah, 1.2), 2.4)) * (0.55 + zufall(k + 2) * 0.8);
+  const hoch = s * 1000 * (0.03 + 0.85 * Math.pow(Math.min(nah, 1.2), 2.4)) * (0.55 + zufall(k + 2) * 0.8);
   const breit = hoch * (0.2 + zufall(k + 3) * 0.12);
-  const [x, y] = p, unten = Math.max(H * 1.05, y + H * 0.2), neig = (zufall(k + 4) - 0.5) * breit * 0.8;
+  const [x, y] = p, unten = Math.max(H * 1.05, y + s * 200), neig = (zufall(k + 4) - 0.5) * breit * 0.8;
   if (x + breit < 0 || x - breit > W) return;
   // Der Fuss steht im Wolkenmeer: nach unten loest sich der Fels im Dunst auf
-  const fuss = g.createLinearGradient(0, y - hoch, 0, y + H * 0.08);
+  const fuss = g.createLinearGradient(0, y - hoch, 0, y + s * 80);
   fuss.addColorStop(0, rgb(farbe, sicht)); fuss.addColorStop(0.75, rgb(farbe, sicht));
   fuss.addColorStop(1, rgb(dunst, sicht * 0.0));
   g.fillStyle = fuss;
@@ -70,7 +72,7 @@ function pfeile(g, W, H, s, kam, gier, nah, k, farbe, sicht) {
     if (!p) continue;
     // Sie kommen auf einen zu: Strich vom Fluchtpunkt weg, wachsend
     const vx = p[0] - W / 2, vy = p[1] - H / 2, l = Math.hypot(vx, vy) || 1;
-    const lang = H * (0.006 + 0.09 * Math.pow(Math.min(nah, 1.2), 2.6));
+    const lang = s * 1000 * (0.006 + 0.09 * Math.pow(Math.min(nah, 1.2), 2.6));
     g.strokeStyle = rgb(farbe, sicht * 0.95);
     g.lineWidth = Math.max(1, s * (1 + 4 * nah * nah));
     g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(p[0] + vx / l * lang, p[1] + vy / l * lang); g.stroke();
@@ -93,7 +95,7 @@ function blitz(g, W, H, s, kam, gier, nah, k, farbe, sicht, t) {
   g.moveTo(x, y);
   for (let i = 1; i <= 9; i++) {
     const u = i / 9;
-    x = oben[0] + (unten[0] - oben[0]) * u + (zufall(takt + k + i) - 0.5) * H * 0.06 * (1 - u * 0.5);
+    x = oben[0] + (unten[0] - oben[0]) * u + (zufall(takt + k + i) - 0.5) * s * 60 * (1 - u * 0.5);
     y = oben[1] + (unten[1] - oben[1]) * u;
     g.lineTo(x, y);
   }
@@ -106,7 +108,7 @@ function reiter(g, W, H, s, kam, gier, nah, k, farbe, sicht, t) {
   const nick = -0.02 + (zufall(k + 7) - 0.4) * 0.12 + Math.sin(t * 1.3 + k) * 0.01;
   const p = aufSchirm(kam, richtung(gier, nick), W, H);
   if (!p) return;
-  const gr = H * (0.008 + 0.11 * Math.pow(Math.min(nah, 1.2), 2.3));
+  const gr = s * 1000 * (0.008 + 0.11 * Math.pow(Math.min(nah, 1.2), 2.3));
   const schlag = Math.sin(t * 5 + k * 3);
   const [x, y] = p;
   g.fillStyle = rgb(farbe, sicht);

@@ -3,6 +3,8 @@
 // Details, die Code-Grafik verraten wuerden: dunkle Form, Lichtsaum in der
 // Farbe der Sonne, und bei hoher Bindung gluehende Fugen zwischen den Schuppen.
 
+import { brennweite } from "./himmel.js";
+
 // --- Wo steht die Sonne auf dem Schirm? -----------------------------------------
 // Dieselbe Drehung wie im Shader (Spalten wie GLSL), nur umgekehrt angewandt.
 function drehen(m, v) { return [m[0] * v[0] + m[3] * v[1] + m[6] * v[2], m[1] * v[0] + m[4] * v[1] + m[7] * v[2], m[2] * v[0] + m[5] * v[1] + m[8] * v[2]]; }
@@ -21,7 +23,8 @@ export function aufSchirm(kamera, sonne, W, H) {
   const mt = [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];   // Transponierte = Umkehrung
   const v = drehen(mt, sonne);
   if (v[2] <= 0.05) return null;
-  return [W / 2 + v[0] / v[2] * 1.35 * H, H / 2 - v[1] / v[2] * 1.35 * H];
+  const b = brennweite(W, H) * H;
+  return [W / 2 + v[0] / v[2] * b, H / 2 - v[1] / v[2] * b];
 }
 
 // --- Silhouette ---------------------------------------------------------------
@@ -51,7 +54,8 @@ function bez(p0, p1, p2, p3, u) {
 
 /** Zeichnet alle Teile des Drachen als eine Form in g (Farbe vorher setzen). */
 function formZeichnen(g, W, H, f, t) {
-  const s = H / 1000;
+  // Hochkant nach der Breite bemessen, sonst fuellt der Hals das ganze Bild
+  const s = Math.min(H, W * 1.25) / 1000;
   const mitte = W / 2 + f.rolle * 50 * s;
   const kx = mitte + f.kopf * 90 * s, ky = H * 0.56 - f.neigung * 130 * s;
   const atem = Math.sin(t * 1.4) * 5 * s;

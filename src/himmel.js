@@ -34,6 +34,7 @@ uniform float uWaerme;        // 0..1 Stimmung
 uniform int   uOktaven;       // Qualitaet
 uniform int   uVoll;          // 1 = alle Schichten und Verwirbelung
 uniform float uWand;          // 0..1 Gewittertuerme am Horizont
+uniform float uBrenn;         // Brennweite; hochkant kuerzer, damit man genug sieht
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -235,7 +236,7 @@ vec3 tonemap(vec3 x) {
 
 void main() {
   vec2 uv = (gl_FragCoord.xy - 0.5 * uAufl) / uAufl.y;
-  vec3 rd = normalize(vec3(uv, 1.35));
+  vec3 rd = normalize(vec3(uv, uBrenn));
   rd = drehY(uKamera.x) * drehX(uKamera.y) * drehZ(uKamera.z) * rd;
 
   vec3 grund = himmelsfarbe(rd);
@@ -284,6 +285,12 @@ function shader(gl, typ, quelle) {
 }
 
 /** Legt den Himmel auf `canvas` an. Gibt null zurueck, wenn WebGL2 fehlt. */
+/**
+ * Brennweite in Bildhoehen. Quer 1,35 wie immer; hochkant so kurz, dass man
+ * zur Seite mindestens 0,4 Bogenmass sieht - sonst laege die Luecke im Nichts.
+ */
+export const brennweite = (W, H) => Math.min(1.35, (W / H) * 0.5 / Math.tan(0.4));
+
 export function himmelErstellen(canvas) {
   const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, powerPreference: "high-performance" });
   if (!gl) return null;
@@ -295,7 +302,7 @@ export function himmelErstellen(canvas) {
   gl.useProgram(prog);
   gl.bindVertexArray(gl.createVertexArray());
   const u = {};
-  for (const n of ["uAufl", "uZeit", "uPos", "uHoehe", "uKamera", "uSonne", "uZenit", "uHorizont", "uSonnenFarbe",
+  for (const n of ["uAufl", "uZeit", "uPos", "uHoehe", "uKamera", "uBrenn", "uSonne", "uZenit", "uHorizont", "uSonnenFarbe",
     "uWolkeHell", "uWolkeDunkel", "uDunst", "uBedeckung", "uSterne", "uWaerme", "uOktaven", "uVoll", "uWand"]) u[n] = gl.getUniformLocation(prog, n);
 
   return {
@@ -308,6 +315,7 @@ export function himmelErstellen(canvas) {
       gl.uniform2f(u.uPos, pos[0], pos[1]);
       gl.uniform1f(u.uHoehe, hoehe);
       gl.uniform3f(u.uKamera, kamera[0], kamera[1], kamera[2]);
+      gl.uniform1f(u.uBrenn, brennweite(canvas.width, canvas.height));
       gl.uniform3fv(u.uSonne, st.sonne);
       for (const k of ["zenit", "horizont", "sonnenFarbe", "wolkeHell", "wolkeDunkel", "dunst"]) {
         gl.uniform3fv(u["u" + k[0].toUpperCase() + k.slice(1)], st[k]);

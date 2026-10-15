@@ -35,16 +35,45 @@ const bilder = [
   // Ausgaenge, vollstaendig aufgedeckt
   ...["grenze", "geheimnis", "tribunal", "pflicht", "sturz"].map((n, i) => [`${12 + i}-ausgang-${n}`, `ausgang=${n}&schritte=2`])
 ];
-async function standbild(name, q, stufe) {
-  await seite.goto(`${basis}?${q}&q=${stufe}&t=40`);
-  await seite.waitForFunction(() => document.documentElement.dataset.bereit === "1" || document.documentElement.dataset.webgl === "fehlt", null, { timeout: 30000 });
-  if (await seite.evaluate(() => document.documentElement.dataset.webgl === "fehlt")) { fehler.push("WebGL2 fehlt im Testbrowser"); return false; }
-  await seite.screenshot({ path: `${ORDNER}/${name}-${stufe}.png` });
+async function standbild(name, q, stufe, s = seite, endung = `-${stufe}`) {
+  await s.goto(`${basis}?${q}&q=${stufe}&t=40`);
+  await s.waitForFunction(() => document.documentElement.dataset.bereit === "1", null, { timeout: 30000 });
+  const ohne = await s.evaluate(() => document.documentElement.dataset.webgl === "fehlt");
+  if (ohne !== /ohnewebgl/.test(q)) { fehler.push(ohne ? "WebGL2 fehlt im Testbrowser" : `${name}: 2D-Fassung nicht aktiv`); return false; }
+  await s.screenshot({ path: `${ORDNER}/${name}${endung}.png` });
   return true;
 }
 for (const [name, q, beide] of bilder) {
   if (!await standbild(name, q, "hoch")) break;
   if (beide) await standbild(name, q, "niedrig");
+}
+
+// Ohne WebGL: dieselben Stellen in der ruhigen 2D-Fassung
+for (const [name, q] of [["21-2d-titel", "titel"], ["22-2d-e1-felsen", "einsatz=1&uhr=29.5"], ["23-2d-e3-gewitter", "einsatz=3&uhr=41"],
+  ["24-2d-e4-mondnacht", "einsatz=4&uhr=29&bindung=70"], ["25-2d-e5-morgenrot", "einsatz=5&uhr=10&bindung=90"]]) {
+  await standbild(name, q + "&ohnewebgl", "hoch", seite, "");
+}
+// Und einmal wirklich ohne WebGL: der Browser selbst schaltet es ab
+{
+  const ohne = await chromium.launch({ args: ["--disable-webgl", "--disable-webgl2", "--disable-3d-apis"] });
+  const s = await ohne.newPage({ viewport: { width: 1280, height: 720 } });
+  s.on("pageerror", (e) => fehler.push("ohne WebGL: " + e.message));
+  await s.goto(`${basis}?einsatz=2&uhr=26&t=40`);
+  await s.waitForFunction(() => document.documentElement.dataset.bereit === "1", null, { timeout: 30000 });
+  if (!await s.evaluate(() => document.documentElement.dataset.webgl === "fehlt")) fehler.push("Browser ohne WebGL: 2D-Fassung springt nicht ein");
+  await s.screenshot({ path: `${ORDNER}/26-2d-echt-e2.png` });
+  await ohne.close();
+}
+
+// Hochkant wie auf einem Telefon
+{
+  const tel = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  tel.on("pageerror", (e) => fehler.push("hochkant: " + e.message));
+  for (const [name, q] of [["30-tel-titel", "titel"], ["31-tel-e1-felsen", "einsatz=1&uhr=29.5"], ["32-tel-e1-moment", "einsatz=1&uhr=50"],
+    ["33-tel-e2-pfeile", "einsatz=2&uhr=26&bindung=60"], ["34-tel-szene4", "szene=4&schritte=2"], ["35-tel-grenze", "ausgang=grenze&schritte=2"]]) {
+    await standbild(name, q, "hoch", tel, "");
+  }
+  await tel.close();
 }
 
 // Live: Titel → Einsatz 1 per Leertaste

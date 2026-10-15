@@ -38,15 +38,17 @@ ab, wenn eine Strategie in über 80 % zum selben Ende führt, keine Gefahr
 npm run rauchtest
 ```
 
-Rendert den Himmel in allen Tageszeiten, kalt und warm, in beiden
-Qualitätsstufen (WebGL in Software) und legt die Bilder nach `rauchtest/`.
+Rendert Flug, Einsätze, Szenen und Ausgänge in beiden Qualitätsstufen
+(WebGL in Software), die 2D-Fassung ohne WebGL und hochkant wie auf einem
+Telefon, spielt einige Stellen live und legt die Bilder nach `rauchtest/`.
 Ansehen, auch in voller Größe: Artefakte wie Treppenlinien sieht man in der
 Übersicht nicht.
 
 ## Aufbau
 
 ```
-src/himmel.js     der Himmel: ein Fragment-Shader, Qualitätsstufen
+src/himmel.js     der Himmel: ein Fragment-Shader, Qualitätsstufen, Brennweite
+src/himmel2d.js   derselbe Himmel ohne WebGL, ruhig in 2D gemalt (?ohnewebgl)
 src/stimmung.js   Tageszeiten als Daten, Mischung mit der Wärme
 src/flug.js       Flugmodell ohne Grafik; die Bindung wirkt als Verzögerung,
                   Trägheit, Wendigkeit, Unruhe. Reine Funktionen, testbar.

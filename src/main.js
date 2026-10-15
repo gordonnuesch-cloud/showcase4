@@ -9,9 +9,11 @@
 // Erproben:   ?einsatz=1..5 · ?szene=1..4 · ?ausgang=grenze|geheimnis|tribunal|pflicht|sturz
 //             ?erprobung (Werte unten, [ ] Bindung, Q) · ?frei (freier Flug, 1-5 Tageszeit)
 //             ?bindung= ?verdacht= ?zufall=0..1 (Entdeckung erzwingen oder ausschliessen)
+//             ?ohnewebgl (die 2D-Fassung des Himmels)
 // Testbilder: ?t=Sek, dazu ?uhr=Sek (Einsatz vorrechnen) oder ?schritte=n (weiterblaettern)
 
 import { himmelErstellen, QUALITAET } from "./himmel.js";
+import { himmel2dErstellen } from "./himmel2d.js";
 import { stimmung, TAGESZEITEN } from "./stimmung.js";
 import { neuerFlug, fliegen, kamera, kennwerte } from "./flug.js";
 import { dracheZeichnen, aufSchirm, teilchenErstellen, teilchenZeichnen } from "./drache.js";
@@ -23,7 +25,8 @@ import { zeileZeichnen, momentZeichnen, titelZeichnen, seiteZeichnen } from "./s
 import { TITEL, AUSGAENGE, NOCHMAL } from "./data/szenen.js";
 
 const param = new URLSearchParams(location.search);
-const glc = document.getElementById("himmel"), vorn = document.getElementById("hud");
+let glc = document.getElementById("himmel");
+const vorn = document.getElementById("hud");
 const g2 = vorn.getContext("2d");
 const frei = param.has("frei"), erprobung = param.has("erprobung");
 
@@ -44,7 +47,14 @@ const zustand = {
 };
 let einsatz = null, szene = null, ende = null;
 
-const himmel = (() => { try { return himmelErstellen(glc); } catch (e) { console.error(e); return null; } })();
+// Erst WebGL; geht das nicht, eine ruhige 2D-Fassung auf frischer Leinwand
+// (eine Leinwand, die WebGL versucht hat, gibt keinen 2D-Kontext mehr her)
+let himmel = param.has("ohnewebgl") ? null : (() => { try { return himmelErstellen(glc); } catch (e) { console.error(e); return null; } })();
+const zweiD = !himmel;
+if (zweiD) {
+  const neu = glc.cloneNode(); glc.replaceWith(neu); glc = neu;
+  himmel = himmel2dErstellen(glc);
+}
 let flug = neuerFlug();
 const teilchen = teilchenErstellen();
 
@@ -364,10 +374,8 @@ if (fest !== null) {
   };
   requestAnimationFrame(schleife);
 }
-if (!himmel) {
-  document.documentElement.dataset.webgl = "fehlt";
-  // Vorlaeufig: ohne WebGL der Text als Seite. Die ruhige 2D-Fassung folgt.
-  document.getElementById("notnagel")?.classList.add("sichtbar");
-}
+if (zweiD) document.documentElement.dataset.webgl = "fehlt";
+// Wenn gar nichts zeichnen kann, bleibt der Text als Seite
+if (!himmel) document.getElementById("notnagel")?.classList.add("sichtbar");
 window.__ton = { probe: tonProbe, starten: tonStarten };
 window.__flug = { zustand, spiel, get flug() { return flug; }, get einsatz() { return einsatz; }, get szene() { return szene; }, get ende() { return ende; } };

@@ -56,7 +56,8 @@ src/einsatz.js    Ablauf eines Einsatzes ohne Grafik; Wirkung der Entscheidungen
 src/data/szenen.js  Titel, vier Zwischenszenen, fünf Ausgänge
 src/geschichte.js Zwischenszenen und Ausgänge ohne Grafik; alle Regelzahlen oben
 tools/notnagel.mjs  baut beim Build den ganzen Text als verstecktes HTML
-src/einsatzbild.js  Felsnadeln, Pfeile, Blitze, Reiter im Bild
+src/einsatzbild.js  Felsnadeln, Pfeile, Blitze, Reiter im Bild; Regen
+src/ton.js        aller Klang aus Web Audio: Wind, Regen, Flügel, Herz, Einzelklänge
 src/schrift.js    Text im Canvas: Zeilen, Momente, Textseiten
 src/main.js       Phasen, Schleife, Eingabe (?einsatz= ?szene= ?ausgang= ?erprobung ?frei)
 ```

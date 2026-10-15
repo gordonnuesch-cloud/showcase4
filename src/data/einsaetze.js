@@ -7,6 +7,8 @@
 //                                  Luecke liegt, relativ zum Kurs beim Auftauchen
 //   { t, moment: {...} }           Distanz halten oder Naehe zulassen
 //
+// Optional je Einsatz: regen (Stuetzpunkte), wetterleuchten (ferne Blitze).
+//
 // Zeugen bestimmen, wie viel Verdacht Naehe kostet (siehe einsatz.js).
 
 // Die Luecke wandert, waehrend die Gefahr naeherkommt (Seitenwind, schwenkende
@@ -93,6 +95,9 @@ export const EINSAETZE = [
     titel: "Gewitterfront am Abend",
     auftrag: "Durchbruch durch die Front über dem Pass. Dahinter liegt der Nachschub des Feindes.",
     dauer: 128,
+    // Regen als Stuetzpunkte [Sekunde, Staerke]; dazwischen wird gemischt
+    regen: [[0, 0.15], [20, 0.4], [40, 1], [88, 1], [93, 0.08], [128, 0]],
+    wetterleuchten: true,
     ablauf: [
       { t: 2, text: "Die Front steht wie eine Wand. Darin wandert das Licht." },
       { t: 9, text: "Durch die Front oder gar nicht. Wer umdreht, erklärt es mir.", wer: "vey" },

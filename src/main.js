@@ -1,7 +1,8 @@
 // Einstieg: Spielschleife, Eingabe, Zeichnen.
 //
 // Ablauf: Titel → Einsatz 1 → Szene 1 → … → Einsatz 5 → Ausgang.
-// Steuerung: Pfeile oder WASD, Maus oder Finger ziehen. Bei zwei
+// Steuerung: Pfeile oder WASD, Maus oder Finger ziehen. M oder das Zeichen
+// oben rechts schaltet den Ton. Bei zwei
 // Moeglichkeiten waehlt ← / → (oder Tippen links/rechts). Leertaste, Enter
 // oder Tippen blaettert weiter.
 //
@@ -14,9 +15,10 @@ import { himmelErstellen, QUALITAET } from "./himmel.js";
 import { stimmung, TAGESZEITEN } from "./stimmung.js";
 import { neuerFlug, fliegen, kamera, kennwerte } from "./flug.js";
 import { dracheZeichnen, aufSchirm, teilchenErstellen, teilchenZeichnen } from "./drache.js";
-import { neuesSpiel, einsatzBeginnen, einsatzSchritt, einsatzAbschliessen, waehlen, autopilot, tastenAnlauf } from "./einsatz.js";
+import { neuesSpiel, einsatzBeginnen, einsatzSchritt, einsatzAbschliessen, waehlen, autopilot, tastenAnlauf, regenStaerke } from "./einsatz.js";
 import { szeneBeginnen, szeneWeiter, szeneWaehlen, verhaftet, ausgang } from "./geschichte.js";
-import { hindernisseZeichnen } from "./einsatzbild.js";
+import { hindernisseZeichnen, regenSchleier, regenZeichnen } from "./einsatzbild.js";
+import { tonStarten, tonFuehren, tonEreignis, stummSchalten, istStumm, tonProbe } from "./ton.js";
 import { zeileZeichnen, momentZeichnen, titelZeichnen, seiteZeichnen } from "./schrift.js";
 import { TITEL, AUSGAENGE, NOCHMAL } from "./data/szenen.js";
 
@@ -38,7 +40,7 @@ const zustand = {
   waerme: kennwerte(spiel.bindung).waerme,
   q: QUALITAET[param.get("q")] || QUALITAET.hoch,
   automatisch: !param.has("q"),
-  fps: 0, erschuetterung: 0, blitz: 0, letzteAktion: -1
+  fps: 0, erschuetterung: 0, blitz: 0, letzteAktion: -1, leuchten: 6
 };
 let einsatz = null, szene = null, ende = null;
 
@@ -71,6 +73,7 @@ function szeneStarten(nr) {
 function ausgangZeigen(name) {
   ende = { name, d: AUSGAENGE[name], gezeigt: [zustand.uhr + 0.6] };
   phase("ausgang");
+  tonEreignis("ausgang", name);
 }
 // Neue Absaetze bekommen ihren Zeitpunkt, damit sie einzeln einblenden
 function stempeln() {
@@ -88,6 +91,7 @@ function weiter(test = false) {
   if (!test && zustand.uhr - zustand.letzteAktion < 0.45) return;
   zustand.letzteAktion = zustand.uhr;
   const p = zustand.phase;
+  if (p !== "einsatz" && p !== "frei") tonEreignis("seite");
   if (p === "titel") einsatzStarten(0);
   else if (p === "szene" && !szene.wahl) {
     szeneWeiter(szene, spiel, spiel.zufall);
@@ -99,9 +103,14 @@ function weiter(test = false) {
   }
 }
 function entscheiden(seite) {
-  if (zustand.phase === "einsatz" && einsatz.moment && einsatz.momentSeit > 1.6) waehlen(einsatz, spiel, seite === "links" ? "distanz" : "naehe");
+  if (zustand.phase === "einsatz" && einsatz.moment && einsatz.momentSeit > 1.6) {
+    const wahl = seite === "links" ? "distanz" : "naehe";
+    waehlen(einsatz, spiel, wahl);
+    tonEreignis(wahl);
+  }
   if (zustand.phase === "szene" && szene.wahl && zustand.uhr - szene.wahl.t > 1.4) {
     szeneWaehlen(szene, spiel, seite);
+    tonEreignis(seite === "rechts" && szene.nr === 3 && szene.stufe === "tuer" ? "naehe" : "seite");
     stempeln();
     zustand.letzteAktion = zustand.uhr;
   }
@@ -110,6 +119,8 @@ function entscheiden(seite) {
 addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   tasten[k] = true;
+  tonStarten();
+  if (k === "m") stummSchalten();
   if (!e.repeat && (k === "arrowleft" || k === "a")) entscheiden("links");
   if (!e.repeat && (k === "arrowright" || k === "d")) entscheiden("rechts");
   if (!e.repeat && (k === " " || k === "enter")) weiter();
@@ -124,7 +135,12 @@ addEventListener("keydown", (e) => {
 addEventListener("keyup", (e) => { tasten[e.key.toLowerCase()] = false; });
 addEventListener("blur", () => { for (const k in tasten) tasten[k] = false; });
 vorn.style.pointerEvents = "auto";
+// Tonschalter oben rechts, als gezeichnetes Zeichen
+const schalterFlaeche = () => ({ x: innerWidth - 56, y: 8, b: 48 });
 vorn.addEventListener("pointerdown", (e) => {
+  tonStarten();
+  const f = schalterFlaeche();
+  if (e.clientX > f.x && e.clientY < f.y + f.b) { stummSchalten(); return; }
   const offen = (zustand.phase === "einsatz" && einsatz.moment) || (zustand.phase === "szene" && szene.wahl);
   if (offen) return entscheiden(e.clientX < innerWidth / 2 ? "links" : "rechts");
   if (zustand.phase !== "einsatz" && zustand.phase !== "frei") return weiter();
@@ -166,14 +182,15 @@ function qualitaetPruefen(dt) {
 const AUSGANGSBILD = {
   grenze: { zeit: 4, waerme: 1, drache: true }, geheimnis: { zeit: 3, waerme: 0.8, drache: true },
   pflicht: { zeit: 1, waerme: 0, drache: true }, tribunal: { zeit: 3, waerme: 0, drache: false },
-  sturz: { zeit: 2, waerme: 0.1, drache: false }
+  sturz: { zeit: 2, waerme: 0.1, drache: false, regen: 0.5 }
 };
 function bildwahl() {
   const warm = kennwerte(spiel.bindung).waerme;
   switch (zustand.phase) {
     case "titel": return { zeit: 0, waerme: 0.35, drache: true, schleier: 0.4 };
-    case "einsatz": return { zeit: einsatz.nr, waerme: warm, drache: true };
-    case "szene": return { zeit: szene.nr, waerme: warm, drache: false, schleier: 0.74 };
+    case "einsatz": return { zeit: einsatz.nr, waerme: warm, drache: true, regen: regenStaerke(einsatz) };
+    // Nach dem Gewitter regnet es auf das Zelt der Hauptfrau
+    case "szene": return { zeit: szene.nr, waerme: warm, drache: false, schleier: 0.74, regen: szene.nr === 2 ? 0.35 : 0 };
     case "ausgang": return { ...AUSGANGSBILD[ende.name], schleier: 0.5 };
     default: return { zeit: zustand.zeit, waerme: warm, drache: true };
   }
@@ -191,6 +208,18 @@ function schritt(dt, lenkung) {
     for (const ereignis of einsatzSchritt(einsatz, dt, flug)) {
       if (ereignis.art === "treffer") zustand.erschuetterung = 1;
       if (ereignis.art === "knapp") zustand.erschuetterung = Math.max(zustand.erschuetterung, 0.35);
+      if (ereignis.art === "frei") tonEreignis("vorbei");
+      if (ereignis.art === "treffer" || ereignis.art === "knapp" || ereignis.art === "moment") tonEreignis(ereignis.art);
+    }
+    // Pfeile hoert man kurz bevor sie da sind
+    for (const h of einsatz.hindernisse) {
+      if (h.typ === "pfeile" && !h.gehoert && h.ankunft - einsatz.uhr < 1.3) { h.gehoert = true; tonEreignis("pfeile"); }
+    }
+    // Wetterleuchten: ferne Blitze, die nichts wollen ausser da sein
+    if (einsatz.d.wetterleuchten && !einsatz.moment && (zustand.leuchten -= dt) < 0) {
+      const nah = 0.2 + Math.random() * 0.5;
+      zustand.blitz = Math.max(zustand.blitz, nah * 0.8); tonEreignis("donner", nah);
+      zustand.leuchten = 5 + Math.random() * 8;
     }
     if (einsatz.ende) {
       einsatzAbschliessen(einsatz, spiel);
@@ -198,6 +227,12 @@ function schritt(dt, lenkung) {
     }
   }
   zustand.erschuetterung = Math.max(0, zustand.erschuetterung - dt * 1.6);
+  const w = bildwahl();
+  tonFuehren({
+    tempo: flug.tempo, drehrate: zustand.drehrate || 0, waerme: zustand.waerme, schlag: flug.schlag, zeit: zustand.uhr,
+    laut: { einsatz: einsatz?.moment ? 0.4 : 1, frei: 1, titel: 0.6, szene: 0.25, ausgang: 0.5 }[p] ?? 1,
+    regen: w.regen || 0, drache: w.drache
+  });
   // Die Stimmung folgt langsam - man soll den Wandel spueren, nicht springen sehen
   zustand.waerme += (bildwahl().waerme - zustand.waerme) * Math.min(1, dt * 0.6);
 }
@@ -221,10 +256,15 @@ function bild(t, dt) {
   let blitz = 0;
   if (zustand.phase === "einsatz") blitz = hindernisseZeichnen(g2, W, H, einsatz, kam, licht, t);
   const drehrate = dt > 0 ? (flug.kurs - letzterKurs) / dt : 0; letzterKurs = flug.kurs;
+  zustand.drehrate = drehrate;
+  regenSchleier(g2, W, H, wahl.regen || 0);
   if (wahl.drache) {
     teilchenZeichnen(g2, W, H, teilchen, flug, dt, zustand.waerme, drehrate);
     dracheZeichnen(g2, W, H, flug, licht, t);
   }
+  regenZeichnen(g2, W, H, wahl.regen || 0, flug, dt, drehrate);
+  // Ein naher Blitz aus den Hindernissen bringt seinen Donner mit
+  if (blitz > 0.3 && zustand.uhr - (zustand.donnerZuletzt ?? -9) > 1.2) { tonEreignis("donner", Math.min(1, blitz)); zustand.donnerZuletzt = zustand.uhr; }
 
   // Blitzlicht und Treffer legen sich ueber alles
   zustand.blitz = Math.max(blitz, zustand.blitz - dt * 4);
@@ -251,6 +291,8 @@ function bild(t, dt) {
     seiteZeichnen(g2, W, H, { kopf: ende.d.titel, gross: true, absaetze, fuss: alle ? NOCHMAL : "Weiter: Leertaste oder Tippen", jetzt, seit, schleier: wahl.schleier });
   }
 
+  schalterZeichnen(W, H);
+
   if (erprobung || frei) {
     g2.font = `${Math.round(H * 0.018)}px "Cormorant Garamond", Georgia, serif`;
     g2.textAlign = "left";
@@ -259,6 +301,24 @@ function bild(t, dt) {
       : zustand.phase === "frei" ? `Freier Flug · ${TAGESZEITEN[zustand.zeit].name}` : zustand.phase;
     g2.fillText(`${wo} · Bindung ${spiel.bindung} · Verdacht ${spiel.verdacht} · Narben ${spiel.narben.join("/")} · ${zustand.q.name}${zustand.fps ? ` · ${Math.round(zustand.fps)} fps` : ""}`, H * 0.03, H * 0.97);
   }
+}
+
+// Lautsprecher als Strichzeichnung; durchgestrichen, wenn stumm
+function schalterZeichnen(W, H) {
+  const d = W / innerWidth, f = schalterFlaeche();
+  const x = (f.x + f.b / 2) * d, y = (f.y + f.b / 2) * d, s = 9 * d;
+  g2.save();
+  g2.strokeStyle = g2.fillStyle = "rgba(245,238,226,0.55)";
+  g2.lineWidth = 1.6 * d; g2.lineJoin = "round";
+  g2.beginPath();
+  g2.moveTo(x - s, y - s * 0.4); g2.lineTo(x - s * 0.45, y - s * 0.4); g2.lineTo(x + s * 0.15, y - s);
+  g2.lineTo(x + s * 0.15, y + s); g2.lineTo(x - s * 0.45, y + s * 0.4); g2.lineTo(x - s, y + s * 0.4); g2.closePath();
+  g2.stroke();
+  g2.beginPath();
+  if (istStumm()) { g2.moveTo(x + s * 0.5, y - s * 0.45); g2.lineTo(x + s * 1.2, y + s * 0.45); g2.moveTo(x + s * 1.2, y - s * 0.45); g2.lineTo(x + s * 0.5, y + s * 0.45); }
+  else { g2.arc(x + s * 0.2, y, s * 0.6, -0.8, 0.8); g2.moveTo(x + s * 0.2 + s * 1.05 * Math.cos(-0.8), y + s * 1.05 * Math.sin(-0.8)); g2.arc(x + s * 0.2, y, s * 1.05, -0.8, 0.8); }
+  g2.stroke();
+  g2.restore();
 }
 
 // --- Start ----------------------------------------------------------------------------
@@ -309,4 +369,5 @@ if (!himmel) {
   // Vorlaeufig: ohne WebGL der Text als Seite. Die ruhige 2D-Fassung folgt.
   document.getElementById("notnagel")?.classList.add("sichtbar");
 }
+window.__ton = { probe: tonProbe, starten: tonStarten };
 window.__flug = { zustand, spiel, get flug() { return flug; }, get einsatz() { return einsatz; }, get szene() { return szene; }, get ende() { return ende; } };

@@ -121,3 +121,34 @@ function reiter(g, W, H, s, kam, gier, nah, k, farbe, sicht, t) {
   g.fill();
   g.beginPath(); g.ellipse(x, y + gr * 0.1, gr * 0.14, gr * 0.6, 0, 0, Math.PI * 2); g.fill();
 }
+
+// --- Regen ---------------------------------------------------------------------------
+// Schraege Striche im Flugwind. Beim Wenden und Rollen kippen sie mit.
+const tropfen = Array.from({ length: 420 }, () => ({ x: Math.random(), y: Math.random(), z: 0.3 + Math.random() * 0.7 }));
+
+/** Ein grauer Schleier hinter dem Drachen: Regen nimmt dem Himmel die Tiefe. */
+export function regenSchleier(g, W, H, staerke) {
+  if (staerke <= 0.01) return;
+  g.fillStyle = `rgba(70,78,92,${0.24 * staerke})`; g.fillRect(0, 0, W, H);
+}
+
+/** Die Tropfen selbst, vor dem Drachen. */
+export function regenZeichnen(g, W, H, staerke, flug, dt, drehrate) {
+  if (staerke <= 0.01) return;
+  const n = Math.round(tropfen.length * 0.7 * staerke);
+  const neig = flug.rolle * 1.4 + drehrate * 0.25 + 0.25;
+  g.save();
+  g.lineCap = "round";
+  for (let i = 0; i < n; i++) {
+    const p = tropfen[i];
+    p.y += dt * (1.6 + p.z * 1.8);
+    p.x += dt * neig * 0.6 * p.z;
+    if (p.y > 1.05) { p.y -= 1.1; p.x = Math.random(); }
+    if (p.x < -0.05) p.x += 1.1; if (p.x > 1.05) p.x -= 1.1;
+    const x = p.x * W, y = p.y * H, l = H * (0.012 + 0.03 * p.z);
+    g.strokeStyle = `rgba(205,214,232,${(0.06 + 0.2 * p.z * p.z) * Math.min(1, staerke * 1.5)})`;
+    g.lineWidth = Math.max(1, H / 1000 * (0.6 + 1.2 * p.z));
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x - neig * l * 0.35, y - l); g.stroke();
+  }
+  g.restore();
+}

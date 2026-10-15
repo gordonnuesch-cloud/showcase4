@@ -42,7 +42,7 @@ export function einsatzBeginnen(nr) {
 
 /**
  * Ein Zeitschritt. Gibt Ereignisse zurueck ("treffer", "knapp", "frei",
- * "moment", "zeile"), die Grafik und Ton aufgreifen koennen.
+ * "moment", "zeile", "auftauchen"), die Grafik und Ton aufgreifen koennen.
  */
 export function einsatzSchritt(e, dt, flug) {
   const ereignisse = [];
@@ -59,6 +59,7 @@ export function einsatzSchritt(e, dt, flug) {
       e.hindernisse.push({ typ: x.hindernis, ankunft: x.t, vorlauf: h.vorlauf, toleranz: h.toleranz,
         basis: flug.kurs + x.versatz, ziel: flug.kurs + x.versatz, weite: h.weite, takt: h.takt,
         phase: (x.i * 2.39) % 6.28, saat: x.i * 7.31, vorbei: null });
+      ereignisse.push({ art: "auftauchen", typ: x.hindernis });
     } else if (x.moment) {
       e.moment = x.moment; e.momentSeit = 0; e.momentNr = x.i;
       ereignisse.push({ art: "moment" });
@@ -107,6 +108,16 @@ export function waehlen(e, spiel, seite) {
 
 /** Narben zaehlen fuer die Inspektion und den Sturz; jeder Treffer zehrt auch an der Bindung. */
 export const TREFFER_KOSTET = 2;
+/** Regenstaerke 0..1 zur aktuellen Einsatzuhr, aus den Stuetzpunkten der Daten. */
+export function regenStaerke(e) {
+  const r = e.d.regen;
+  if (!r) return 0;
+  for (let i = 1; i < r.length; i++) {
+    if (e.uhr <= r[i][0]) { const [t0, a] = r[i - 1], [t1, b] = r[i]; return a + (b - a) * (e.uhr - t0) / (t1 - t0); }
+  }
+  return r[r.length - 1][1];
+}
+
 export function einsatzAbschliessen(e, spiel) {
   spiel.narben[e.nr] = e.treffer;
   spiel.bindung = begrenzt(spiel.bindung - e.treffer * TREFFER_KOSTET);

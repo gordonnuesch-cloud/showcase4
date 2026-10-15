@@ -54,6 +54,11 @@ await seite.keyboard.press("Space");
 await seite.waitForTimeout(300);
 if (await seite.evaluate(() => window.__flug.zustand.phase) !== "einsatz") fehler.push("Live: Leertaste auf dem Titel startet keinen Einsatz");
 
+// Ton: nach der Leertaste laeuft der Klang; jeder Einzelklang laesst sich spielen
+const ton = await seite.evaluate(() => window.__ton.probe());
+if (ton !== "running") fehler.push(`Ton: AudioContext ist ${ton}`);
+await seite.waitForTimeout(600);
+
 // Live: ein Moment oeffnet sich, eine Wahl mit der Pfeiltaste veraendert die Bindung
 await seite.goto(`${basis}?einsatz=1&uhr=49&q=niedrig`);
 await seite.waitForFunction(() => window.__flug?.einsatz.moment && window.__flug.einsatz.momentSeit > 1.8, null, { timeout: 30000 })

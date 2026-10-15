@@ -1,7 +1,7 @@
 // Einstieg: Spielschleife, Eingabe, Zeichnen.
 //
 // Ablauf: Titel → Einsatz 1 → Szene 1 → … → Einsatz 5 → Ausgang.
-// Steuerung: Pfeile oder WASD, Maus oder Finger ziehen. M oder das Zeichen
+// Steuerung: Pfeile oder WASD, Maus oder Finger dorthin halten, wohin es gehen soll. M oder das Zeichen
 // oben rechts schaltet den Ton. Bei zwei
 // Moeglichkeiten waehlt ← / → (oder Tippen links/rechts). Leertaste, Enter
 // oder Tippen blaettert weiter.
@@ -112,13 +112,19 @@ function weiter(test = false) {
     else if (!test) location.reload();
   }
 }
+const wahlBereit = () => (zustand.phase === "einsatz" && einsatz.moment ? einsatz.momentSeit > 0.7
+  : zustand.phase === "szene" && szene.wahl ? zustand.uhr - szene.wahl.t > 0.7 : false);
 function entscheiden(seite) {
-  if (zustand.phase === "einsatz" && einsatz.moment && einsatz.momentSeit > 1.6) {
+  // Zu frueh gedrueckt? Dann vormerken statt verwerfen
+  const offen = (zustand.phase === "einsatz" && einsatz.moment) || (zustand.phase === "szene" && szene.wahl);
+  if (offen && !wahlBereit()) { zustand.vorgemerkt = seite; return; }
+  zustand.vorgemerkt = null;
+  if (zustand.phase === "einsatz" && einsatz.moment) {
     const wahl = seite === "links" ? "distanz" : "naehe";
     waehlen(einsatz, spiel, wahl);
     tonEreignis(wahl);
   }
-  if (zustand.phase === "szene" && szene.wahl && zustand.uhr - szene.wahl.t > 1.4) {
+  if (zustand.phase === "szene" && szene.wahl) {
     szeneWaehlen(szene, spiel, seite);
     tonEreignis(seite === "rechts" && szene.nr === 3 && szene.stufe === "tuer" ? "naehe" : "seite");
     stempeln();
@@ -147,21 +153,26 @@ addEventListener("blur", () => { for (const k in tasten) tasten[k] = false; });
 vorn.style.pointerEvents = "auto";
 // Tonschalter oben rechts, als gezeichnetes Zeichen
 const schalterFlaeche = () => ({ x: innerWidth - 56, y: 8, b: 48 });
+// Im Artifact laeuft die Seite in einem Rahmen: erst ein Klick holt die Tastatur her
+vorn.tabIndex = 0;
 vorn.addEventListener("pointerdown", (e) => {
+  vorn.focus({ preventScroll: true });
   tonStarten();
   const f = schalterFlaeche();
   if (e.clientX > f.x && e.clientY < f.y + f.b) { stummSchalten(); return; }
   const offen = (zustand.phase === "einsatz" && einsatz.moment) || (zustand.phase === "szene" && szene.wahl);
   if (offen) return entscheiden(e.clientX < innerWidth / 2 ? "links" : "rechts");
   if (zustand.phase !== "einsatz" && zustand.phase !== "frei") return weiter();
-  zeiger.aktiv = true; zeiger.x0 = e.clientX; zeiger.y0 = e.clientY; zeiger.x = zeiger.y = 0; vorn.setPointerCapture(e.pointerId);
+  zeiger.aktiv = true; vorn.setPointerCapture(e.pointerId); zeigerLenken(e);
 });
-vorn.addEventListener("pointermove", (e) => {
-  if (!zeiger.aktiv) return;
-  const r = Math.min(innerWidth, innerHeight) * 0.25;
-  zeiger.x = Math.max(-1, Math.min(1, (e.clientX - zeiger.x0) / r));
-  zeiger.y = Math.max(-1, Math.min(1, (zeiger.y0 - e.clientY) / r));
-});
+// Gelenkt wird dorthin, wo man drueckt: rechts von der Mitte nach rechts,
+// je weiter aussen, desto staerker. Mitte heisst geradeaus.
+function zeigerLenken(e) {
+  const x = (e.clientX - innerWidth / 2) / (innerWidth * 0.3), y = (innerHeight * 0.5 - e.clientY) / (innerHeight * 0.35);
+  const tot = (v) => (Math.abs(v) < 0.08 ? 0 : v);
+  zeiger.x = Math.max(-1, Math.min(1, tot(x))); zeiger.y = Math.max(-1, Math.min(1, tot(y)));
+}
+vorn.addEventListener("pointermove", (e) => { if (zeiger.aktiv) zeigerLenken(e); });
 ["pointerup", "pointercancel"].forEach((n) => vorn.addEventListener(n, () => { zeiger.aktiv = false; zeiger.x = zeiger.y = 0; }));
 
 function eingabe(dt) {
@@ -216,6 +227,7 @@ function bildwahl() {
 function schritt(dt, lenkung) {
   zustand.uhr += dt;
   const p = zustand.phase;
+  if (zustand.vorgemerkt && wahlBereit()) entscheiden(zustand.vorgemerkt);
   // Ausserhalb der Einsaetze zieht er ruhige Bogen von selbst
   const lenkt = p === "frei" || (p === "einsatz" && !einsatz.moment);
   const ruhig = p === "einsatz" ? { x: 0, y: 0 } : { x: Math.sin(zustand.uhr * 0.13) * 0.25, y: 0 };

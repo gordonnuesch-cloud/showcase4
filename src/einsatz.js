@@ -150,8 +150,8 @@ export function autopilot(reaktion = 0.25, vorhalt = 0.3, stufig = false) {
 /** Eine gehaltene Taste lenkt erst sanft, dann voll - so geht auch ein kurzes Antippen. */
 export function tastenAnlauf(wert, richtung, dt) {
   if (!richtung) return 0;
-  if (Math.sign(wert) !== richtung) wert = richtung * 0.35;
-  return richtung * Math.min(1, Math.abs(wert) + dt * 2.5);
+  if (Math.sign(wert) !== richtung) wert = richtung * 0.3;
+  return richtung * Math.min(1, Math.abs(wert) + dt * 1.8);
 }
 
 /**

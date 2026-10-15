@@ -58,7 +58,7 @@ export function zeileZeichnen(g, W, H, zeile, uhr) {
  * Links liegt immer die Distanz, rechts die Naehe.
  */
 export function momentZeichnen(g, W, H, moment, seit) {
-  const a = Math.min(1, seit / 1.2), b = Math.max(0, Math.min(1, (seit - 1.4) / 0.8));
+  const a = Math.min(1, seit / 1.0), b = Math.max(0, Math.min(1, (seit - 0.4) / 0.5));
   // Das Bild tritt etwas zurueck, ohne zu verschwinden
   g.save();
   const schleier = g.createLinearGradient(0, 0, 0, H);
@@ -138,7 +138,7 @@ export function seiteZeichnen(g, W, H, s) {
     y += hoehen[i];
   }
   if (s.wahl) {
-    const b = Math.max(0, Math.min(1, (s.jetzt - s.wahl.t - 0.8) / 0.8));
+    const b = Math.max(0, Math.min(1, (s.jetzt - s.wahl.t - 0.3) / 0.5));
     const fw = groesse(W, H, 1), bw = Math.min(W * 0.4, fw * 13), wy = H * 0.8;
     g.font = `600 ${fw}px ${SCHRIFT}`;
     g.textAlign = "left";

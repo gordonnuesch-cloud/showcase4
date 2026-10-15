@@ -10,7 +10,7 @@ export const TITEL = {
     "Im Sturmregiment gilt das Gesetz der Horste: Reiterin und Drache sind gebunden, im Dienst und nicht darüber hinaus. Wer es bricht, stirbt.",
     "Dein Drache heißt Ilvar. Er ist nicht nur ein Drache."
   ],
-  bedienung: "Lenken mit Pfeiltasten oder Ziehen. Manchmal hält die Zeit an: links Distanz, rechts Nähe.",
+  bedienung: "Lenken mit den Pfeiltasten oder mit Maus und Finger: dorthin drücken, wohin es gehen soll. Manchmal hält die Zeit an: links Distanz, rechts Nähe.",
   weiter: "Beginnen: Leertaste oder Tippen"
 };
 

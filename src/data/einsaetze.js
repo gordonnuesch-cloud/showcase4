@@ -28,7 +28,7 @@ export const EINSAETZE = [
     dauer: 130,
     ablauf: [
       { t: 2, text: "Die Klippen liegen noch im Schatten. Unter dir atmet er langsam und gleichmäßig." },
-      { t: 8, text: "Lenken: Pfeiltasten oder ziehen.", wer: "hinweis" },
+      { t: 8, text: "Lenken: Pfeiltasten, oder dorthin drücken, wohin es gehen soll.", wer: "hinweis" },
       { t: 14, text: "Du hältst die Zügel zu fest.", wer: "ilvar" },
       { t: 20, text: "Er hat es nicht laut gesagt. Er sagt nie etwas laut." },
       { t: 26, text: "Felsnadeln voraus. Lenke in die Lücke.", wer: "hinweis" },

@@ -17,7 +17,7 @@ export function kennwerte(b) {
   return {
     verzoegerung: lerp(0.22, 0.0, k),     // Sekunden
     traegheit: lerp(0.55, 0.1, k),        // Zeitkonstante in Sekunden
-    wendigkeit: lerp(0.5, 1.1, k),        // Bogenmass pro Sekunde
+    wendigkeit: lerp(0.6, 1.3, k),        // Bogenmass pro Sekunde
     unruhe: lerp(0.35, 0.0, k),
     waerme: k * k * (3 - 2 * k)           // Stimmung im Bild
   };
@@ -26,7 +26,7 @@ export function kennwerte(b) {
 export function neuerFlug() {
   return {
     zeit: 0, kurs: 0, neigung: 0, rolle: 0, hoehe: 0, pos: [0, 0], tempo: 1.3,
-    puffer: [], folge: { x: 0, y: 0 }, kopf: 0, schlag: 0, hinweis: 0
+    puffer: [], folge: { x: 0, y: 0 }, kopf: 0, schlag: 0, hinweis: 0, lehne: 0
   };
 }
 
@@ -37,6 +37,9 @@ const schlingern = (t) => Math.sin(t * 1.3) * 0.5 + Math.sin(t * 2.7 + 1.1) * 0.
 export function fliegen(f, dt, eingabe, bindung) {
   const kw = kennwerte(bindung);
   f.zeit += dt;
+  // Die Reiterin lehnt sich sofort in die Kurve - so spuert man, dass die
+  // Eingabe angekommen ist, auch wenn der Drache noch nicht folgt
+  f.lehne += (eingabe.x - f.lehne) * (1 - Math.exp(-dt / 0.07));
   // Verzoegerung: die Eingabe kommt erst nach kw.verzoegerung an
   f.puffer.push({ t: f.zeit, x: eingabe.x, y: eingabe.y });
   let jetzt = f.puffer[0];
@@ -51,7 +54,7 @@ export function fliegen(f, dt, eingabe, bindung) {
   const sy = f.folge.y + schlingern(f.zeit + 40) * kw.unruhe * 0.5;
 
   f.kurs += sx * kw.wendigkeit * dt;
-  f.rolle += (-sx * 0.45 - f.rolle) * Math.min(1, dt * 3);
+  f.rolle += (-sx * 0.6 - f.rolle) * Math.min(1, dt * 3);
   f.neigung += (sy * 0.3 - f.neigung) * Math.min(1, dt * 3);
   f.hoehe = Math.max(-0.3, Math.min(1.2, f.hoehe + Math.sin(f.neigung) * f.tempo * dt * 0.8));
   f.pos[0] += Math.sin(f.kurs) * f.tempo * dt;
@@ -64,8 +67,8 @@ export function fliegen(f, dt, eingabe, bindung) {
   return kw;
 }
 
-/** Kamera fuer den Himmel: gieren, nicken, rollen. Leicht nach unten geneigt. */
-export const kamera = (f) => [f.kurs, -0.13 + f.neigung, f.rolle];
+/** Kamera fuer den Himmel: gieren, nicken, rollen. Leicht nach unten geneigt; der Blick der Reiterin geht in die Kurve voraus. */
+export const kamera = (f) => [f.kurs + f.lehne * 0.07, -0.13 + f.neigung, f.rolle - f.lehne * 0.08];
 
 /**
  * Misst, wie lange der Drache braucht, um einem plotzlichen Lenkbefehl zu

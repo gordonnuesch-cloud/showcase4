@@ -25,11 +25,15 @@ seite.on("pageerror", (e) => fehler.push("pageerror: " + e.message));
 // Freier Flug: gleiche Kurve bei niedriger und hoher Bindung, in beiden Stufen
 const bilder = [
   ["01-frei-bindung10", "frei&zeit=4&bindung=10&lenk=0.6", true], ["02-frei-bindung90", "frei&zeit=4&bindung=90&lenk=0.6", true],
+  ["03-titel", "titel", true],
   // Einsaetze: vorgerechnet bis zur genannten Sekunde
-  ["03-e1-titel", "einsatz=1&uhr=3"], ["04-e1-ilvar", "einsatz=1&uhr=16"],
-  ["05-e1-felsen", "einsatz=1&uhr=29.5&bindung=30", true], ["06-e1-moment", "einsatz=1&uhr=50"],
-  ["07-e2-pfeile", "einsatz=2&uhr=26&bindung=60"], ["08-e3-blitz", "einsatz=3&uhr=41&bindung=20"],
-  ["09-e4-reiter", "einsatz=4&uhr=29&bindung=70"], ["10-e5-moment", "einsatz=5&uhr=52&bindung=80"]
+  ["04-e1-felsen", "einsatz=1&uhr=29.5&bindung=30", true], ["05-e1-moment", "einsatz=1&uhr=50"],
+  ["06-e3-blitz", "einsatz=3&uhr=41&bindung=20"], ["07-e4-reiter", "einsatz=4&uhr=29&bindung=70"],
+  // Zwischenszenen: weitergeblaettert; zufall=0 erzwingt die Entdeckung, 1 schliesst sie aus
+  ["08-szene1-ruhig", "szene=1&zufall=1&schritte=2"], ["09-szene2-entdeckt", "szene=2&zufall=0&verdacht=50&schritte=2"],
+  ["10-szene3-folge", "szene=3&zufall=0&verdacht=50&schritte=3&wahl=links"], ["11-szene4-tuer", "szene=4&schritte=2", true],
+  // Ausgaenge, vollstaendig aufgedeckt
+  ...["grenze", "geheimnis", "tribunal", "pflicht", "sturz"].map((n, i) => [`${12 + i}-ausgang-${n}`, `ausgang=${n}&schritte=2`])
 ];
 async function standbild(name, q, stufe) {
   await seite.goto(`${basis}?${q}&q=${stufe}&t=40`);
@@ -43,6 +47,13 @@ for (const [name, q, beide] of bilder) {
   if (beide) await standbild(name, q, "niedrig");
 }
 
+// Live: Titel → Einsatz 1 per Leertaste
+await seite.goto(`${basis}?q=niedrig`);
+await seite.waitForTimeout(1500);
+await seite.keyboard.press("Space");
+await seite.waitForTimeout(300);
+if (await seite.evaluate(() => window.__flug.zustand.phase) !== "einsatz") fehler.push("Live: Leertaste auf dem Titel startet keinen Einsatz");
+
 // Live: ein Moment oeffnet sich, eine Wahl mit der Pfeiltaste veraendert die Bindung
 await seite.goto(`${basis}?einsatz=1&uhr=49&q=niedrig`);
 await seite.waitForFunction(() => window.__flug?.einsatz.moment && window.__flug.einsatz.momentSeit > 1.8, null, { timeout: 30000 })
@@ -52,7 +63,21 @@ await seite.keyboard.press("ArrowRight");
 const nachher = await seite.evaluate(() => ({ b: window.__flug.spiel.bindung, offen: !!window.__flug.einsatz.moment }));
 if (nachher.b <= vorher || nachher.offen) fehler.push(`Live: Nähe zulassen wirkt nicht (Bindung ${vorher} → ${nachher.b})`);
 await seite.waitForTimeout(1500);
-await seite.screenshot({ path: `${ORDNER}/11-e1-folge-live.png` });
+await seite.screenshot({ path: `${ORDNER}/20-e1-folge-live.png` });
+
+// Live: eine Zwischenszene durchblaettern, entdeckt werden, Tamsin decken lassen, weiter in Einsatz 2
+await seite.goto(`${basis}?szene=1&zufall=0&verdacht=50&q=niedrig`);
+await seite.waitForTimeout(800);
+for (let i = 0; i < 8; i++) {
+  const z = await seite.evaluate(() => ({ phase: window.__flug.zustand.phase, wahl: !!window.__flug.szene?.wahl }));
+  if (z.phase !== "szene") break;
+  await seite.keyboard.press(z.wahl ? "ArrowRight" : "Space");
+  await seite.waitForTimeout(z.wahl ? 200 : 1600);
+  if (z.wahl) await seite.waitForTimeout(1400);
+}
+const danach = await seite.evaluate(() => ({ phase: window.__flug.zustand.phase, nr: window.__flug.einsatz?.nr, wahlen: window.__flug.spiel.wahlen }));
+if (danach.phase !== "einsatz" || danach.nr !== 1) fehler.push(`Live: nach Szene 1 kein Einsatz 2 (${JSON.stringify(danach)})`);
+if (!danach.wahlen.some((w) => w.seite === "deckt")) fehler.push("Live: die Wahl in der Szene kam nicht an");
 
 // Fuehlt sich Bindung an? Reaktionszeit muss mit der Bindung deutlich fallen
 const { reaktionszeit } = await import("../src/flug.js");

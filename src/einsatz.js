@@ -5,11 +5,22 @@
 import { EINSAETZE, HINDERNISSE } from "./data/einsaetze.js";
 import { fliegen } from "./flug.js";
 
-/** Was eine Entscheidung kostet. Naehe kostet Verdacht je nach Zeugen. */
+/**
+ * Was eine Entscheidung kostet. Naehe kostet Verdacht nur, wenn sie bemerkt
+ * wird - wie wahrscheinlich, haengt davon ab, wer zusieht. Allein am Himmel
+ * merkt es selten jemand, in Formation oft, im Lager fast immer.
+ */
 export const WIRKUNG = {
-  naehe: { bindung: 12, verdacht: { allein: 6, formation: 12, lager: 15 } },
+  naehe: { bindung: 14, verdacht: { allein: 8, formation: 12, lager: 15 }, bemerkt: { allein: 0.35, formation: 0.75, lager: 0.9 } },
   distanz: { bindung: -4, verdacht: -3 }
 };
+
+/** Wirkung einer Wahl auf Bindung und Verdacht. zufall() liefert 0..1. */
+export function wahlWirkung(seite, zeugen, zufall = Math.random) {
+  if (seite !== "naehe") return { ...WIRKUNG.distanz };
+  const n = WIRKUNG.naehe;
+  return { bindung: n.bindung, verdacht: zufall() < n.bemerkt[zeugen] ? n.verdacht[zeugen] : 0 };
+}
 
 const begrenzt = (x) => Math.max(0, Math.min(100, x));
 /** Winkelunterschied auf -PI..PI gefaltet. */
@@ -86,16 +97,19 @@ export function einsatzSchritt(e, dt, flug) {
 export function waehlen(e, spiel, seite) {
   const m = e.moment;
   if (!m) return;
-  const w = WIRKUNG[seite];
+  const w = wahlWirkung(seite, m.zeugen, spiel.zufall);
   spiel.bindung = begrenzt(spiel.bindung + w.bindung);
-  spiel.verdacht = begrenzt(spiel.verdacht + (seite === "naehe" ? w.verdacht[m.zeugen] : w.verdacht));
+  spiel.verdacht = begrenzt(spiel.verdacht + w.verdacht);
   spiel.wahlen.push({ einsatz: e.nr, moment: e.momentNr, seite });
   e.zeile = { text: m[seite].folge, wer: "folge", seit: e.uhr };
   e.moment = null;
 }
 
+/** Narben zaehlen fuer die Inspektion und den Sturz; jeder Treffer zehrt auch an der Bindung. */
+export const TREFFER_KOSTET = 2;
 export function einsatzAbschliessen(e, spiel) {
   spiel.narben[e.nr] = e.treffer;
+  spiel.bindung = begrenzt(spiel.bindung - e.treffer * TREFFER_KOSTET);
 }
 
 // --- Fuer Tests und Testbilder ----------------------------------------------------

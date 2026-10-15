@@ -72,9 +72,9 @@ export function momentZeichnen(g, W, H, moment, seit) {
     const fw = groesse(W, H, 1), breite = Math.min(W * 0.38, fw * 13), y = H * 0.44;
     g.font = `600 ${fw}px ${SCHRIFT}`;
     g.textAlign = "left";
-    absatz(g, "←  " + moment.distanz.wahl, W * 0.06, y, breite, fw * 1.3, "rgba(200,215,240,A)", b);
+    absatz(g, "←\u00a0\u00a0" + moment.distanz.wahl, W * 0.06, y, breite, fw * 1.3, "rgba(200,215,240,A)", b);
     g.textAlign = "right";
-    absatz(g, moment.naehe.wahl + "  →", W * 0.94, y, breite, fw * 1.3, "rgba(255,212,165,A)", b);
+    absatz(g, moment.naehe.wahl + "\u00a0\u00a0→", W * 0.94, y, breite, fw * 1.3, "rgba(255,212,165,A)", b);
   }
   g.restore();
 }
@@ -99,16 +99,57 @@ export function titelZeichnen(g, W, H, e) {
   return true;
 }
 
-/** Eine ruhige Karte mit Text in der Mitte, etwa zwischen zwei Einsaetzen. */
-export function karteZeichnen(g, W, H, zeilen, a) {
+/**
+ * Eine Textseite fuer Titel, Zwischenszenen und Ausgaenge: Kopf, Absaetze, die
+ * nacheinander erscheinen, darunter ggf. zwei Moeglichkeiten.
+ * s = { kopf, gross, absaetze: [{ text, stil, t }], wahl: { links, rechts, t } | null,
+ *       fuss, jetzt, schleier 0..1, seit }
+ */
+export function seiteZeichnen(g, W, H, s) {
+  const a = Math.min(1, s.seit / 1.2);
   g.save();
-  g.fillStyle = `rgba(4,5,10,${0.62 * a})`; g.fillRect(0, 0, W, H);
+  g.fillStyle = `rgba(5,6,12,${s.schleier * a})`; g.fillRect(0, 0, W, H);
   g.textAlign = "center";
-  const fs = groesse(W, H);
-  let y = H * 0.4;
-  for (const [text, stil] of zeilen) {
-    g.font = stil === "gross" ? `500 ${Math.round(fs * 1.6)}px ${SCHRIFT}` : stil === "leise" ? `italic 500 ${Math.round(fs * 0.8)}px ${SCHRIFT}` : `500 ${fs}px ${SCHRIFT}`;
-    y += absatz(g, text, W / 2, y, Math.min(W * 0.8, fs * 26), fs * (stil === "gross" ? 2 : 1.35), stil === "leise" ? "rgba(230,224,214,A)" : "rgba(252,247,238,A)", stil === "leise" ? a * 0.7 : a) + fs * 0.6;
+  const fs = groesse(W, H), breite = Math.min(W * 0.84, fs * 27), zh = fs * 1.36;
+  let y = H * (s.gross ? 0.2 : 0.16);
+  if (s.kopf) {
+    if (s.gross) {
+      g.font = `500 ${Math.round(fs * 2.3)}px ${SCHRIFT}`;
+      absatz(g, s.kopf, W / 2, y, W * 0.9, fs * 2.4, "rgba(255,250,242,A)", a);
+      y += fs * 2.4;
+    } else {
+      g.font = `600 ${Math.round(fs * 0.72)}px ${SCHRIFT}`;
+      absatz(g, s.kopf.toUpperCase().split("").join(" "), W / 2, y, W * 0.9, fs, "rgba(236,226,212,A)", a * 0.8);
+      y += fs * 1.6;
+    }
+  }
+  // Was nicht mehr passt, faellt oben heraus - die neuesten Absaetze bleiben
+  const stilFont = (stil) => (stil === "folge" || stil === "gefahr" || stil === "lage" ? `italic 500 ${fs}px ${SCHRIFT}` : `500 ${fs}px ${SCHRIFT}`);
+  const hoehen = s.absaetze.map((p) => { g.font = stilFont(p.stil); return umbrechen(g, p.text, breite).length * zh + fs * 0.7; });
+  const platz = H * (s.wahl ? 0.7 : 0.82) - y;
+  let von = 0, summe = hoehen.reduce((x, h) => x + h, 0);
+  while (summe > platz && von < hoehen.length - 1) summe -= hoehen[von++];
+  for (let i = von; i < s.absaetze.length; i++) {
+    const p = s.absaetze[i];
+    const b = Math.min(1, (s.jetzt - p.t) / 0.9) * a;
+    const farbe = { folge: "rgba(250,238,220,A)", gefahr: "rgba(255,200,180,A)", lage: "rgba(255,228,196,A)" }[p.stil] || "rgba(250,246,238,A)";
+    g.font = stilFont(p.stil);
+    absatz(g, p.text, W / 2, y, breite, zh, farbe, Math.max(0, b));
+    y += hoehen[i];
+  }
+  if (s.wahl) {
+    const b = Math.max(0, Math.min(1, (s.jetzt - s.wahl.t - 0.8) / 0.8));
+    const fw = groesse(W, H, 1), bw = Math.min(W * 0.4, fw * 13), wy = H * 0.8;
+    g.font = `600 ${fw}px ${SCHRIFT}`;
+    g.textAlign = "left";
+    absatz(g, "←\u00a0\u00a0" + s.wahl.links, W * 0.06, wy, bw, fw * 1.3, "rgba(200,215,240,A)", b);
+    g.textAlign = "right";
+    absatz(g, s.wahl.rechts + "\u00a0\u00a0→", W * 0.94, wy, bw, fw * 1.3, "rgba(255,212,165,A)", b);
+  } else if (s.fuss) {
+    const b = Math.max(0, Math.min(1, (s.jetzt - (s.absaetze.at(-1)?.t ?? 0) - 1.5) / 1)) * 0.6;
+    g.font = `italic 500 ${Math.round(fs * 0.75)}px ${SCHRIFT}`;
+    g.textAlign = "center";
+    absatz(g, s.fuss, W / 2, H * 0.93, W * 0.9, fs, "rgba(232,226,216,A)", b);
   }
   g.restore();
 }

@@ -25,6 +25,16 @@ bei Bindung 0–100. Bricht ab, wenn hohe Bindung nicht spürbar leichter macht.
 Nach jeder Änderung an Hindernissen oder Flugwerten.
 
 ```
+npm run balance
+```
+
+Spielt das ganze Spiel je Strategie 400-mal durch (immer Distanz, immer Nähe,
+Nähe nur allein, Zufall …) und zeigt die Verteilung der fünf Ausgänge. Bricht
+ab, wenn eine Strategie in über 80 % zum selben Ende führt, keine Gefahr
+(Tribunal oder Sturz) mehr trägt oder ein Ausgang kaum vorkommt. Nach jeder
+Änderung an Zahlen in `einsatz.js` oder `geschichte.js`.
+
+```
 npm run rauchtest
 ```
 
@@ -43,7 +53,10 @@ src/flug.js       Flugmodell ohne Grafik; die Bindung wirkt als Verzögerung,
 src/drache.js     Hals, Kopf, Flügel als 2D-Silhouette mit Saumlicht; Glut/Asche
 src/data/einsaetze.js  die fünf Einsätze als Daten: Zeilen, Hindernisse, Momente
 src/einsatz.js    Ablauf eines Einsatzes ohne Grafik; Wirkung der Entscheidungen
+src/data/szenen.js  Titel, vier Zwischenszenen, fünf Ausgänge
+src/geschichte.js Zwischenszenen und Ausgänge ohne Grafik; alle Regelzahlen oben
+tools/notnagel.mjs  baut beim Build den ganzen Text als verstecktes HTML
 src/einsatzbild.js  Felsnadeln, Pfeile, Blitze, Reiter im Bild
-src/schrift.js    Text im Canvas: Zeilen, Momente, Titel, Karten
-src/main.js       Schleife und Eingabe (?einsatz=1..5, ?erprobung, ?frei)
+src/schrift.js    Text im Canvas: Zeilen, Momente, Textseiten
+src/main.js       Phasen, Schleife, Eingabe (?einsatz= ?szene= ?ausgang= ?erprobung ?frei)
 ```

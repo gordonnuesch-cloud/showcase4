@@ -28,7 +28,9 @@ const bilder = [
   ["03-titel", "titel", true],
   // Einsaetze: vorgerechnet bis zur genannten Sekunde
   ["04-e1-felsen", "einsatz=1&uhr=29.5&bindung=30", true], ["05-e1-moment", "einsatz=1&uhr=50"],
-  ["06-e3-blitz", "einsatz=3&uhr=41&bindung=20"], ["07-e4-reiter", "einsatz=4&uhr=29&bindung=70"],
+  ["06-e3-blitz", "einsatz=3&uhr=41&bindung=20"], ["07-e4-reiter", "einsatz=4&uhr=28.5&bindung=70"],
+  // Hoehe: Salve kurz nach dem Auftauchen (noch unten) und kurz vor der Ankunft (gestiegen)
+  ["07a-e2-salve-frueh", "einsatz=2&uhr=24.4&bindung=60"], ["07b-e2-salve-spaet", "einsatz=2&uhr=26.6&bindung=60", true],
   // Zwischenszenen: weitergeblaettert; zufall=0 erzwingt die Entdeckung, 1 schliesst sie aus
   ["08-szene1-ruhig", "szene=1&zufall=1&schritte=2"], ["09-szene2-entdeckt", "szene=2&zufall=0&verdacht=50&schritte=2"],
   ["10-szene3-folge", "szene=3&zufall=0&verdacht=50&schritte=3&wahl=links"], ["11-szene4-tuer", "szene=4&schritte=2", true],

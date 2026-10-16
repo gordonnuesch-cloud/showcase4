@@ -14,7 +14,7 @@ const misch = (a, b, t) => a.map((x, i) => x + (b[i] - x) * t);
  * Zeichnet alle Hindernisse eines Einsatzes. Gibt die Staerke eines
  * Blitzlichts zurueck (0..1), das main ueber das ganze Bild legt.
  */
-export function hindernisseZeichnen(g, W, H, e, kam, licht, t) {
+export function hindernisseZeichnen(g, W, H, e, kam, licht, t, flug) {
   let blitzlicht = 0;
   // Groessen nach der Brennweite: hochkant waeren sie sonst riesig
   const s = brennweite(W, H) * H / 1.35 / 1000;
@@ -26,14 +26,16 @@ export function hindernisseZeichnen(g, W, H, e, kam, licht, t) {
     if (sicht <= 0) continue;
     // Ferne Dinge nehmen die Farbe des Dunstes an, nahe werden dunkel
     const farbe = misch(licht.himmel.map((x) => x * 0.75), [0.03, 0.03, 0.05], Math.min(1, 0.3 + nah * 0.75));
+    if (h.art === "hoch") { salveZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, flug.hoehe); continue; }
+    if (h.art === "tief") { patrouilleZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, flug.hoehe); continue; }
     const rand = h.toleranz + 0.04;
     for (const seite of [-1, 1]) {
       for (let i = 0; i < 16; i++) {
         const k = h.saat + i * 13.7 + (seite > 0 ? 500 : 0);
-        const abstand = rand + i * ({ felsen: 0.11, pfeile: 0.07, blitz: 0.17, reiter: 0.16 }[h.typ]) + zufall(k) * 0.04;
+        const abstand = rand + i * ({ felsen: 0.11, blitz: 0.17, staffel: 0.16 }[h.typ]) + zufall(k) * 0.04;
         // Beim Vorbeiziehen weichen die Dinge nach aussen aus dem Bild
         const gier = h.ziel + seite * (abstand + vorbei * 0.5);
-        const art = { felsen, pfeile, blitz, reiter }[h.typ];
+        const art = { felsen, blitz, staffel: reiter }[h.typ];
         blitzlicht = Math.max(blitzlicht, art(g, W, H, s, kam, gier, nah, k, farbe, sicht, t, seite, licht.himmel) || 0);
       }
     }
@@ -65,17 +67,63 @@ function felsen(g, W, H, s, kam, gier, nah, k, farbe, sicht, t, seite, dunst) {
   g.fill();
 }
 
-function pfeile(g, W, H, s, kam, gier, nah, k, farbe, sicht) {
-  for (let j = 0; j < 3; j++) {
-    const nick = -0.08 + zufall(k + j * 5.1) * 0.2;
-    const p = aufSchirm(kam, richtung(gier + (zufall(k + j) - 0.5) * 0.05, nick), W, H);
+// --- Hoehe: Salven von unten, Patrouillen auf eurer Hoehe -----------------------
+// Entfernung voraus, aus der Naehe der Gefahr; daraus der Blickwinkel einer Hoehe.
+const entfernung = (nah) => 0.35 + (1 - Math.min(nah, 1)) * 6;
+const CLOUD = -0.75;   // Wolkenobergrenze wie im Shader (OBEN)
+
+/**
+ * Ballistenbolzen steigen in Bogen aus den Wolken bis knapp unter die Grenze
+ * h.hoehe und zerstieben dort. Wer darueber fliegt, sieht sie unter sich.
+ */
+function salveZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, hoehe) {
+  const d = entfernung(nah), gross = s * 1000;
+  g.save();
+  g.lineCap = "round";
+  for (let i = 0; i < 70; i++) {
+    const k = h.saat + i * 3.17;
+    const gier = kam[0] + (i / 69 - 0.5) * 3.2 + (zufall(k) - 0.5) * 0.04;
+    const dd = d * (0.8 + zufall(k + 1) * 0.45);
+    const u = (t * (0.9 + zufall(k + 2) * 0.5) + zufall(k + 3)) % 1;
+    // Hoehe auf dem Bogen: schnell aus den Wolken, langsamer zum Scheitel
+    const auf = (v) => CLOUD + (h.hoehe - 0.03 - CLOUD) * (1 - Math.pow(1 - v, 2));
+    // ...und kommen dabei naeher: so stehen sie schraeg, wie auf einen gezielt
+    const weg = (v) => dd * (1.35 - 0.55 * v);
+    const punkt = (v) => aufSchirm(kam, richtung(gier, Math.atan2(auf(v) - hoehe, weg(v))), W, H);
+    const kopf = punkt(u), schweif = punkt(Math.max(0, u - 0.3)), schaft = punkt(Math.max(0, u - 0.1));
+    if (!kopf || !schweif || !schaft) continue;
+    const dicke = Math.max(1.2, s * (1.5 + 4 * nah * nah) * (d / dd));
+    // Rauchspur: hell, ausfransend
+    const spur = g.createLinearGradient(schweif[0], schweif[1], kopf[0], kopf[1]);
+    spur.addColorStop(0, "rgba(225,228,236,0)"); spur.addColorStop(1, `rgba(225,228,236,${0.6 * sicht})`);
+    g.strokeStyle = spur; g.lineWidth = dicke * 2.4;
+    g.beginPath(); g.moveTo(schweif[0], schweif[1]); g.lineTo(kopf[0], kopf[1]); g.stroke();
+    // Schaft dunkel, Spitze mit einem Glanz
+    g.strokeStyle = rgb(farbe, sicht); g.lineWidth = dicke;
+    g.beginPath(); g.moveTo(schaft[0], schaft[1]); g.lineTo(kopf[0], kopf[1]); g.stroke();
+    g.fillStyle = `rgba(255,236,200,${0.8 * sicht})`;
+    g.beginPath(); g.arc(kopf[0], kopf[1], dicke * 0.9, 0, Math.PI * 2); g.fill();
+    // Am Scheitel zerstiebt der Bolzen in ein paar Funken - dort ist die Grenze
+    if (u > 0.92) {
+      g.fillStyle = `rgba(255,200,140,${(1 - (u - 0.92) / 0.08) * 0.7 * sicht})`;
+      for (let j = 0; j < 3; j++) g.fillRect(kopf[0] + (zufall(k + j) - 0.5) * gross * 0.02, kopf[1] - zufall(k + j + 5) * gross * 0.012, dicke, dicke);
+    }
+  }
+  g.restore();
+}
+
+/** Feindliche Reiter auf eurer Hoehe und darueber; wer tief genug geht, hat sie ueber sich. */
+function patrouilleZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, hoehe) {
+  const d = entfernung(nah);
+  for (let i = 0; i < 16; i++) {
+    const k = h.saat + i * 5.3;
+    const gier = kam[0] + (i / 15 - 0.5) * 2.8 + (zufall(k) - 0.5) * 0.1;
+    const dd = d * (0.8 + zufall(k + 1) * 0.5);
+    const wy = h.hoehe + 0.08 + zufall(k + 2) * 0.45 + Math.sin(t * 1.1 + k) * 0.03;
+    const p = aufSchirm(kam, richtung(gier, Math.atan2(wy - hoehe, dd)), W, H);
     if (!p) continue;
-    // Sie kommen auf einen zu: Strich vom Fluchtpunkt weg, wachsend
-    const vx = p[0] - W / 2, vy = p[1] - H / 2, l = Math.hypot(vx, vy) || 1;
-    const lang = s * 1000 * (0.006 + 0.09 * Math.pow(Math.min(nah, 1.2), 2.6));
-    g.strokeStyle = rgb(farbe, sicht * 0.95);
-    g.lineWidth = Math.max(1, s * (1 + 4 * nah * nah));
-    g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(p[0] + vx / l * lang, p[1] + vy / l * lang); g.stroke();
+    const gr = s * 1000 * 0.05 / dd;
+    reiterForm(g, p[0], p[1], gr, Math.sin(t * 5 + k * 3), rgb(farbe, sicht));
   }
 }
 
@@ -109,11 +157,13 @@ function reiter(g, W, H, s, kam, gier, nah, k, farbe, sicht, t) {
   const p = aufSchirm(kam, richtung(gier, nick), W, H);
   if (!p) return;
   const gr = s * 1000 * (0.008 + 0.11 * Math.pow(Math.min(nah, 1.2), 2.3));
-  const schlag = Math.sin(t * 5 + k * 3);
-  const [x, y] = p;
-  g.fillStyle = rgb(farbe, sicht);
+  reiterForm(g, p[0], p[1], gr, Math.sin(t * 5 + k * 3), rgb(farbe, sicht));
+}
+
+/** Ein Drache mit Reiter, von vorn gesehen: Fluegel als flaches M, Koerper als Spindel. */
+function reiterForm(g, x, y, gr, schlag, farbe) {
+  g.fillStyle = farbe;
   g.beginPath();
-  // Fluegel als flaches M, Koerper als Spindel
   g.moveTo(x - gr * 1.6, y - gr * 0.35 * schlag);
   g.quadraticCurveTo(x - gr * 0.8, y - gr * (0.2 + 0.4 * schlag), x - gr * 0.15, y);
   g.lineTo(x + gr * 0.15, y);

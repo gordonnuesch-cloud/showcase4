@@ -11,7 +11,8 @@ import { szeneBeginnen, szeneWeiter, szeneWaehlen, verhaftet, ausgang } from "..
 import { neuerFlug } from "../src/flug.js";
 
 const RUNDEN = Number(process.argv[2] || 400);
-// Spieler: Reaktionszeit 0,18-0,36 s, Vorhalt 0,15-0,35 s, Maus oder Tastatur
+// Spieler: Reaktionszeit 0,18-0,36 s, Vorhalt 0,15-0,35 s, Maus oder Tastatur,
+// dazu je Partie eine von zwoelf Arten, sich zu verschaetzen
 const SPIELER = [];
 for (const r of [0.18, 0.24, 0.3, 0.36]) for (const v of [0.15, 0.25, 0.35]) for (const t of [false, true]) SPIELER.push([r, v, t]);
 
@@ -28,16 +29,16 @@ const STRATEGIEN = {
 
 // Ein Einsatz haengt nur von Spieler, Bindung zu Beginn und den Entscheidungen ab
 const ablage = new Map();
-function einsatz(nr, spiel, sp, strategie, r) {
+function einsatz(nr, spiel, sp, irrt, strategie, r) {
   const momente = EINSAETZE[nr].ablauf.filter((x) => x.moment);
   const entscheide = momente.map((x) => strategie.moment(x.moment.zeugen, nr, r));
-  const schluessel = `${nr}|${sp}|${spiel.bindung}|${entscheide.join("")}`;
+  const schluessel = `${nr}|${sp}|${irrt}|${spiel.bindung}|${entscheide.join("")}`;
   let erg = ablage.get(schluessel);
   if (!erg) {
     // Der Flug haengt nicht am Verdacht; den wuerfelt jede Partie selbst (unten)
     const probe = { ...neuesSpiel(), bindung: spiel.bindung, zufall: () => 1 };
     let i = 0;
-    einsatzDurchspielen(nr, probe, neuerFlug(), () => entscheide[i++], autopilot(...SPIELER[sp]), 1 / 30);
+    einsatzDurchspielen(nr, probe, neuerFlug(), () => entscheide[i++], autopilot(...SPIELER[sp], irrt), 1 / 30);
     erg = { treffer: probe.narben[nr], bindung: probe.bindung };
     ablage.set(schluessel, erg);
   }
@@ -48,9 +49,9 @@ function einsatz(nr, spiel, sp, strategie, r) {
 
 function partie(strategie, r) {
   const spiel = { ...neuesSpiel(), zufall: r };
-  const sp = Math.floor(r() * SPIELER.length);
+  const sp = Math.floor(r() * SPIELER.length), irrt = 1 + Math.floor(r() * 12);
   for (let nr = 0; nr < 5; nr++) {
-    einsatz(nr, spiel, sp, strategie, r);
+    einsatz(nr, spiel, sp, irrt, strategie, r);
     if (nr === 4) break;
     const sz = szeneBeginnen(nr, spiel);
     for (let i = 0; i < 20 && !sz.fertig; i++) {

@@ -282,7 +282,7 @@ function bild(t, dt) {
     waerme: zustand.waerme, sparsam: !zustand.q.voll
   };
   let blitz = 0;
-  if (zustand.phase === "einsatz") blitz = hindernisseZeichnen(g2, W, H, einsatz, kam, licht, t);
+  if (zustand.phase === "einsatz") blitz = hindernisseZeichnen(g2, W, H, einsatz, kam, licht, t, flug);
   const drehrate = dt > 0 ? (flug.kurs - letzterKurs) / dt : 0; letzterKurs = flug.kurs;
   zustand.drehrate = drehrate;
   regenSchleier(g2, W, H, wahl.regen || 0);

@@ -31,10 +31,10 @@ EINSAETZE.forEach((d, nr) => {
 
 // --- Ausweichen nach Bindung -------------------------------------------------------------
 const SPIELER = [
-  ["Maus, flink", () => autopilot(0.2, 0.3, false)],
-  ["Maus, langsam", () => autopilot(0.3, 0.3, false)],
-  ["Tastatur, flink", () => autopilot(0.2, 0.3, true)],
-  ["Tastatur, langsam", () => autopilot(0.3, 0.2, true)]
+  ["Maus, flink", () => autopilot(0.2, 0.3, false, 1)],
+  ["Maus, langsam", () => autopilot(0.3, 0.3, false, 2)],
+  ["Tastatur, flink", () => autopilot(0.2, 0.3, true, 3)],
+  ["Tastatur, langsam", () => autopilot(0.3, 0.2, true, 4)]
 ];
 const STUFEN = [0, 20, 40, 60, 80, 100];
 const gesamt = EINSAETZE.reduce((n, d) => n + d.ablauf.filter((x) => x.hindernis).length, 0);

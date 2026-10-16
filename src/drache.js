@@ -57,7 +57,7 @@ function formZeichnen(g, W, H, f, t) {
   // Hochkant nach der Breite bemessen, sonst fuellt der Hals das ganze Bild
   const s = Math.min(H, W * 1.25) / 1000;
   const mitte = W / 2 + f.rolle * 50 * s;
-  const kx = mitte + f.kopf * 90 * s, ky = H * 0.56 - f.neigung * 130 * s;
+  const kx = mitte + f.kopf * 90 * s, ky = H * 0.56 - f.neigung * 130 * s - (f.blick || 0) * 60 * s;
   const atem = Math.sin(t * 1.4) * 5 * s;
 
   // Fluegel: Schulter am Halsansatz, Handgelenk, Spitze weit ausserhalb des Bildes

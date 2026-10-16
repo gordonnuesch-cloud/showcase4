@@ -5,20 +5,30 @@
 //                                  "vey" (Funk der Hauptfrau), "hinweis" (Bedienung)
 //   { t, hindernis, versatz }      Gefahr, die bei t ankommt. versatz: wo die
 //                                  Luecke liegt, relativ zum Kurs beim Auftauchen
+//                                  (nur seitliche Hindernisse)
 //   { t, moment: {...} }           Distanz halten oder Naehe zulassen
 //
 // Optional je Einsatz: regen (Stuetzpunkte), wetterleuchten (ferne Blitze).
 //
 // Zeugen bestimmen, wie viel Verdacht Naehe kostet (siehe einsatz.js).
 
-// Die Luecke wandert, waehrend die Gefahr naeherkommt (Seitenwind, schwenkende
-// Salven, ausweichende Reiter). Wer nachzieht, verliert sie - darin steckt
-// die Bindung. weite: Ausschlag (Bogenmass), takt: Kreisfrequenz.
+// Zwei Arten auszuweichen:
+//   seitlich  (Felsen, Blitze): eine Luecke, die wandert, waehrend die Gefahr
+//             naeherkommt. Wer nachzieht, verliert sie. weite: Ausschlag
+//             (Bogenmass), takt: Kreisfrequenz.
+//   hoch      (Pfeile): Ballisten schiessen aus den Wolken; nur wer um stufe
+//             steigt, ist ueber der Salve. Die Salve steigt und faellt dabei.
+//   tief      (Reiter): sie fliegen auf eurer Hoehe; nur wer um stufe abtaucht,
+//             dicht ueber die Wolken, bleibt ungesehen. Auch sie wechseln die Hoehe.
+//   Eine Staffel (Reiter in der Schlacht) weicht man seitlich aus.
+// Auch hoch und runter folgt der Drache mit Verzoegerung - je nach Bindung.
 export const HINDERNISSE = {
-  felsen: { vorlauf: 5.5, toleranz: 0.23, weite: 0.13, takt: 1.3 },
-  pfeile: { vorlauf: 4.5, toleranz: 0.24, weite: 0.17, takt: 1.6 },
-  blitz: { vorlauf: 4.5, toleranz: 0.22, weite: 0.19, takt: 1.9 },
-  reiter: { vorlauf: 5, toleranz: 0.23, weite: 0.18, takt: 1.7 }
+  felsen: { art: "seitlich", vorlauf: 5.5, toleranz: 0.23, weite: 0.13, takt: 1.3 },
+  blitz: { art: "seitlich", vorlauf: 4.5, toleranz: 0.22, weite: 0.19, takt: 1.9 },
+  pfeile: { art: "hoch", vorlauf: 3.4, stufe: 0.75, toleranz: 0.06, weite: 0.15, takt: 1.7 },
+  reiter: { art: "tief", vorlauf: 3.4, stufe: 0.75, toleranz: 0.06, weite: 0.15, takt: 1.5 },
+  // In der Schlacht kreuzen die Reiter in Formation: dort hilft nur die Luecke
+  staffel: { art: "seitlich", vorlauf: 5, toleranz: 0.22, weite: 0.18, takt: 1.7 }
 };
 
 export const EINSAETZE = [
@@ -62,7 +72,7 @@ export const EINSAETZE = [
       { t: 2, text: "Die Sonne steht hoch. Keine Schatten, nirgends ein Versteck." },
       { t: 9, text: "Abstand halten. Ich will Lücken sehen.", wer: "vey" },
       { t: 16, text: "Sie sieht oft nach hinten.", wer: "ilvar" },
-      { t: 22, text: "Ballisten unter den Wolken. Die Salven kommen von unten.", wer: "hinweis" },
+      { t: 22, text: "Ballisten unter den Wolken. Steig über die Salven: Pfeil nach oben, oder oben ins Bild drücken.", wer: "hinweis" },
       { t: 27, hindernis: "pfeile", versatz: 0.4 },
       { t: 36, hindernis: "pfeile", versatz: -0.5 },
       { t: 43, moment: {
@@ -140,7 +150,7 @@ export const EINSAETZE = [
         distanz: { wahl: "Schweigen", folge: "Ihr schweigt. Es ist ein gutes Schweigen, aber ein vorsichtiges." },
         naehe: { wahl: "Ihn fragen, wer er vorher war", folge: "Er antwortet lange nicht. Dann erzählt er von einem Haus am Wasser. Mehr nicht." }
       } },
-      { t: 24, text: "Feindliche Reiter. Weich ihnen aus, bevor sie euch sehen.", wer: "hinweis" },
+      { t: 24, text: "Feindliche Reiter auf eurer Höhe. Tauch ab, dicht über die Wolken, bevor sie euch sehen.", wer: "hinweis" },
       { t: 30, hindernis: "reiter", versatz: 0.4 },
       { t: 40, hindernis: "reiter", versatz: -0.5 },
       { t: 50, hindernis: "reiter", versatz: 0.3 },
@@ -172,9 +182,9 @@ export const EINSAETZE = [
       { t: 8, text: "Keiner fliegt heute für sich.", wer: "vey" },
       { t: 14, text: "Was auch passiert: Ich weiß, wo du bist.", wer: "ilvar" },
       { t: 21, hindernis: "pfeile", versatz: 0.4 },
-      { t: 29, hindernis: "reiter", versatz: -0.5 },
+      { t: 29, hindernis: "staffel", versatz: -0.5 },
       { t: 37, hindernis: "pfeile", versatz: 0.6 },
-      { t: 45, hindernis: "reiter", versatz: -0.4 },
+      { t: 45, hindernis: "staffel", versatz: -0.4 },
       { t: 52, moment: {
         zeugen: "formation",
         lage: "Tamsin ist getroffen, ihr Drache trudelt. Er wartet nicht auf einen Befehl. Er wartet auf dich.",
@@ -182,9 +192,9 @@ export const EINSAETZE = [
         naehe: { wahl: "Ihn lassen", folge: "Er stürzt mit dir hinab, schneller als jeder Befehl, und fängt sie ab. Die halbe Staffel hat es gesehen." }
       } },
       { t: 64, hindernis: "pfeile", versatz: -0.55 },
-      { t: 72, hindernis: "reiter", versatz: 0.5 },
+      { t: 72, hindernis: "staffel", versatz: 0.5 },
       { t: 80, hindernis: "pfeile", versatz: -0.4 },
-      { t: 88, hindernis: "reiter", versatz: 0.65 },
+      { t: 88, hindernis: "staffel", versatz: 0.65 },
       { t: 96, moment: {
         zeugen: "formation",
         lage: "Die Linie hält. Es wird ruhig. Über dem Feld dreht er den Kopf zu dir, vor allen.",

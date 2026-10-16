@@ -2,8 +2,8 @@
 // damit tools/balance.mjs genau das spielt, was das Spiel spielt.
 //
 // Zahlen, die der Spieler nie sieht:
-//   zwischen zwei Einsaetzen      Verdacht -5 (man vergisst); Bindung 3 Punkte
-//                                 Richtung 20 (Pflichtfluege halten sie auf Dienstniveau)
+//   zwischen zwei Einsaetzen      Verdacht -5 (man vergisst); Bindung ueber 20: -3,
+//                                 darunter 60 % des Wegs zurueck zu 20 (Pflichtfluege)
 //   Inspektion                    Verdacht +3 je Narbe, hoechstens +12
 //   Entdeckungsgefahr             (Verdacht - 25) / 55, hoechstens 90 %
 //   entdeckt werden               Verdacht +10, dann einer der Auswege:
@@ -17,7 +17,7 @@ import { wahlWirkung } from "./einsatz.js";
 export const REGELN = {
   vergessen: -5, pflicht: -3, narbe: 3, narbenHoechstens: 12,
   deckt: { verdacht: -15, schuld: 10 }, distanz: { bindung: -15, verdacht: -10 },
-  verhaftung: 85, entdeckt: 10, sturz: 5, dienst: 20
+  verhaftung: 85, entdeckt: 10, sturz: 5, dienst: 30
 };
 
 const begrenzt = (x) => Math.max(0, Math.min(100, x));
@@ -30,7 +30,10 @@ export const gefahr = (verdacht) => Math.max(0, Math.min(0.9, (verdacht - 25) / 
 export function szeneBeginnen(nr, spiel) {
   const d = SZENEN[nr];
   spiel.verdacht = begrenzt(spiel.verdacht + REGELN.vergessen + (spiel.schuld || 0));
-  spiel.bindung = begrenzt(spiel.bindung + Math.sign(REGELN.dienst - spiel.bindung) * Math.min(Math.abs(REGELN.dienst - spiel.bindung), -REGELN.pflicht));
+  // Pflichtfluege: ueber dem Dienstniveau zehren sie, darunter halten sie ein Mindestmass
+  spiel.bindung = begrenzt(spiel.bindung < REGELN.dienst
+    ? spiel.bindung + (REGELN.dienst - spiel.bindung) * 0.6
+    : Math.max(REGELN.dienst, spiel.bindung + REGELN.pflicht));
   spiel.schuld = 0;
   const absaetze = [...d.absaetze];
   if (nr === 1) {

@@ -23,10 +23,13 @@ export function kennwerte(b) {
   };
 }
 
+/** Reisehoehe ueber dem Wolkenmeer: Platz nach oben fuer Salven, nach unten fuer Patrouillen. */
+export const REISEHOEHE = 0.3;
+
 export function neuerFlug() {
   return {
-    zeit: 0, kurs: 0, neigung: 0, rolle: 0, hoehe: 0, pos: [0, 0], tempo: 1.3,
-    puffer: [], folge: { x: 0, y: 0 }, kopf: 0, schlag: 0, hinweis: 0, lehne: 0
+    zeit: 0, kurs: 0, neigung: 0, rolle: 0, hoehe: REISEHOEHE, pos: [0, 0], tempo: 1.3,
+    puffer: [], folge: { x: 0, y: 0 }, kopf: 0, blick: 0, schlag: 0, hinweis: 0, hinweisHoch: 0, lehne: 0
   };
 }
 
@@ -55,20 +58,32 @@ export function fliegen(f, dt, eingabe, bindung) {
 
   f.kurs += sx * kw.wendigkeit * dt;
   f.rolle += (-sx * 0.6 - f.rolle) * Math.min(1, dt * 3);
-  f.neigung += (sy * 0.3 - f.neigung) * Math.min(1, dt * 3);
-  f.hoehe = Math.max(-0.3, Math.min(1.2, f.hoehe + Math.sin(f.neigung) * f.tempo * dt * 0.8));
+  f.neigung += (sy * 0.35 - f.neigung) * Math.min(1, dt * 3);
+  // Steigen und Sinken so wendig wie das Kurven; ohne Zutun zurueck auf Reisehoehe
+  let steig = Math.sin(f.neigung) * f.tempo * 0.9 * kw.wendigkeit;
+  if (Math.abs(f.folge.y) < 0.15) steig -= (f.hoehe - REISEHOEHE) * 0.12;
+  f.hoehe = Math.max(-0.5, Math.min(1.4, f.hoehe + steig * dt));
   f.pos[0] += Math.sin(f.kurs) * f.tempo * dt;
   f.pos[1] += Math.cos(f.kurs) * f.tempo * dt;
   // Der Kopf nimmt die Richtung vorweg - aber nur, wenn er die Reiterin versteht.
   // Und er zeigt die Luecke, die er sieht (hinweis), nur wenn sie verbunden sind.
   const ziel = jetzt.x * (0.4 + 0.6 * kw.waerme) + (f.hinweis || 0) * Math.max(0, kw.waerme - 0.3) * 1.1;
   f.kopf += (Math.max(-1.2, Math.min(1.2, ziel)) - f.kopf) * Math.min(1, dt * (2 + 8 * kw.waerme));
+  // Ebenso nickt er nach oben oder unten, wenn er die Gefahr in der Hoehe sieht
+  const nick = (f.hinweisHoch || 0) * Math.max(0, kw.waerme - 0.3) * 1.1;
+  f.blick += (nick - f.blick) * Math.min(1, dt * (2 + 8 * kw.waerme));
   f.schlag += dt * (1.1 + Math.abs(sy) * 0.8);
   return kw;
 }
 
-/** Kamera fuer den Himmel: gieren, nicken, rollen. Leicht nach unten geneigt; der Blick der Reiterin geht in die Kurve voraus. */
-export const kamera = (f) => [f.kurs + f.lehne * 0.07, -0.13 + f.neigung, f.rolle - f.lehne * 0.08];
+/**
+ * Kamera fuer den Himmel: gieren, nicken, rollen. Grundstellung leicht nach
+ * oben (negativ = hinauf), damit der Himmel das Bild traegt. Beim Steigen hebt
+ * sich der Blick, beim Abtauchen senkt er sich - halb so stark wie der Drache,
+ * sonst verschwindet beim Tauchen der Himmel. Der Blick der Reiterin geht in
+ * die Kurve voraus.
+ */
+export const kamera = (f) => [f.kurs + f.lehne * 0.07, -0.13 - f.neigung * 0.5, f.rolle - f.lehne * 0.08];
 
 /**
  * Misst, wie lange der Drache braucht, um einem plotzlichen Lenkbefehl zu

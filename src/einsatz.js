@@ -56,8 +56,14 @@ export function einsatzSchritt(e, dt, flug) {
     e.offen.splice(k--, 1);
     if (x.hindernis) {
       const h = HINDERNISSE[x.hindernis];
-      e.hindernisse.push({ typ: x.hindernis, ankunft: x.t, vorlauf: h.vorlauf, toleranz: h.toleranz,
-        basis: flug.kurs + x.versatz, ziel: flug.kurs + x.versatz, weite: h.weite, takt: h.takt,
+      // Hoehenziel: um stufe ueber bzw. unter der Hoehe beim Auftauchen,
+      // aber innerhalb dessen, was der Drache erreichen kann
+      // Jede Salve, jede Patrouille anders hoch: mal reicht ein kurzes Steigen,
+      // mal muss er alles geben
+      const stufe = (h.stufe || 0) * (0.65 + 0.7 * ((x.i * 0.618) % 1));
+      const hoehe = h.art === "hoch" ? Math.min(1.3, flug.hoehe + stufe) : h.art === "tief" ? Math.max(-0.45, flug.hoehe - stufe) : 0;
+      e.hindernisse.push({ typ: x.hindernis, art: h.art, ankunft: x.t, vorlauf: h.vorlauf, toleranz: h.toleranz,
+        basis: flug.kurs + (x.versatz || 0), ziel: flug.kurs + (x.versatz || 0), weite: h.weite || 0, takt: h.takt || 0, hoehe, hoeheBasis: hoehe,
         phase: (x.i * 2.39) % 6.28, saat: x.i * 7.31, vorbei: null });
       ereignisse.push({ art: "auftauchen", typ: x.hindernis });
     } else if (x.moment) {
@@ -70,15 +76,20 @@ export function einsatzSchritt(e, dt, flug) {
     }
   }
 
-  // Hindernisse: die Luecke wandert; bei Ankunft zaehlt nur, ob der Kurs drin liegt
+  // Hindernisse: die Luecke wandert (seitlich) oder die Grenze steigt und
+  // faellt (Hoehe); bei Ankunft zaehlt nur, ob man richtig liegt
   for (const h of e.hindernisse) {
     if (h.vorbei === null) {
       const s = e.uhr - (h.ankunft - h.vorlauf);
-      h.ziel = h.basis + h.weite * (Math.sin(h.takt * s + h.phase) - Math.sin(h.phase));
+      const welle = h.weite * (Math.sin(h.takt * s + h.phase) - Math.sin(h.phase));
+      if (h.art === "seitlich") h.ziel = h.basis + welle;
+      else h.hoehe = Math.max(-0.45, Math.min(1.3, h.hoeheBasis + (h.art === "hoch" ? 1 : -1) * Math.abs(welle)));
     }
     if (h.vorbei === null && e.uhr >= h.ankunft) {
-      const abw = Math.abs(winkel(flug.kurs - h.ziel));
-      h.vorbei = abw > h.toleranz ? "treffer" : abw > h.toleranz * 0.6 ? "knapp" : "frei";
+      // Wie weit liegt man daneben? Seitlich im Winkel, sonst in der Hoehe
+      const abw = h.art === "hoch" ? h.hoehe - flug.hoehe : h.art === "tief" ? flug.hoehe - h.hoehe : Math.abs(winkel(flug.kurs - h.ziel));
+      const knapp = h.art === "seitlich" ? h.toleranz * 0.6 : -0.1;
+      h.vorbei = abw > h.toleranz ? "treffer" : abw > knapp ? "knapp" : "frei";
       if (h.vorbei === "treffer") e.treffer++;
       ereignisse.push({ art: h.vorbei, typ: h.typ });
     }
@@ -87,7 +98,9 @@ export function einsatzSchritt(e, dt, flug) {
 
   // Er sieht die Luecke - ob er sie zeigt, entscheidet die Bindung (flug.js)
   const naechstes = e.hindernisse.find((h) => h.vorbei === null);
-  flug.hinweis = naechstes ? Math.max(-1, Math.min(1, winkel(naechstes.ziel - flug.kurs) * 2)) : 0;
+  const seitlich = naechstes?.art === "seitlich";
+  flug.hinweis = seitlich ? Math.max(-1, Math.min(1, winkel(naechstes.ziel - flug.kurs) * 2)) : 0;
+  flug.hinweisHoch = naechstes && !seitlich ? Math.max(-1, Math.min(1, (naechstes.hoehe - flug.hoehe) * 2.5)) : 0;
 
   if (!e.offen.length && e.uhr >= e.d.dauer) e.ende = true;
   for (const x of ereignisse) e.ereignisse.push(x);
@@ -129,21 +142,30 @@ export function einsatzAbschliessen(e, spiel) {
 // wenn er drin ist. So spielen Menschen - und genau dabei merkt man, ob der
 // Drache nachzieht. Er misst den Drachen, nicht den Spieler.
 
-export function autopilot(reaktion = 0.25, vorhalt = 0.3, stufig = false) {
+export function autopilot(reaktion = 0.25, vorhalt = 0.3, stufig = false, saat = 0) {
   const gesehen = [];
-  let kursVorher = null, taste = 0;
+  let kursVorher = null, hoeheVorher = null, taste = 0;
   return (e, flug, dt) => {
     const h = e.hindernisse.find((x) => x.vorbei === null);
     const rate = kursVorher === null ? 0 : (flug.kurs - kursVorher) / dt;
-    kursVorher = flug.kurs;
+    const steig = hoeheVorher === null ? 0 : (flug.hoehe - hoeheVorher) / dt;
+    kursVorher = flug.kurs; hoeheVorher = flug.hoehe;
     // Er rechnet mit, wie weit der Drache nach dem Loslassen noch dreht -
-    // so, wie es ein gut verbundener Drache tun wuerde (vorhalt)
-    gesehen.push(h ? winkel(h.ziel - flug.kurs) - rate * vorhalt : 0);
-    const alt = gesehen.length > Math.round(reaktion / dt) ? gesehen.shift() : 0;
-    if (!stufig) return { x: Math.max(-1, Math.min(1, alt * 2.5)), y: 0 };   // Ziehen
+    // so, wie es ein gut verbundener Drache tun wuerde (vorhalt). In der
+    // Hoehe zielt er etwas ueber die Grenze hinaus, wie man es eben tut.
+    // Menschen schaetzen falsch: je Hindernis ein eigener kleiner Irrtum
+    // (saat waehlt die Irrtuemer; 0 heisst keiner)
+    const irrtum = h && saat ? ((Math.sin(h.saat * 12.9898 + saat * 78.233) * 43758.5453) % 1) : 0;
+    let fx = 0, fy = 0;
+    if (h?.art === "seitlich") fx = winkel(h.ziel - flug.kurs) - rate * vorhalt + irrtum * 0.16;
+    else if (h) fy = h.hoehe + (h.art === "hoch" ? 1 : -1) * (0.1 + irrtum * 0.12) - flug.hoehe - steig * vorhalt;
+    gesehen.push([fx, fy]);
+    const [ax, ay] = gesehen.length > Math.round(reaktion / dt) ? gesehen.shift() : [0, 0];
+    const y = Math.max(-1, Math.min(1, ay * 4));
+    if (!stufig) return { x: Math.max(-1, Math.min(1, ax * 2.5)), y };   // Maus oder Finger
     // Tastatur: an oder aus, mit demselben Anlauf wie im Spiel (tastenAnlauf)
-    taste = tastenAnlauf(taste, Math.abs(alt) < 0.1 ? 0 : Math.sign(alt), dt);
-    return { x: taste, y: 0 };
+    taste = tastenAnlauf(taste, Math.abs(ax) < 0.1 ? 0 : Math.sign(ax), dt);
+    return { x: taste, y: Math.abs(ay) < 0.05 ? 0 : Math.sign(ay) };
   };
 }
 

@@ -2,7 +2,7 @@
 //
 // Ablauf: Titel → Einsatz 1 → Szene 1 → … → Einsatz 5 → Ausgang.
 // Steuerung: Pfeile oder WASD, Maus oder Finger dorthin halten, wohin es gehen soll. M oder das Zeichen
-// oben rechts schaltet den Ton. Bei zwei
+// oben rechts schaltet den Ton: mit Musik, ohne Musik, stumm. Bei zwei
 // Moeglichkeiten waehlt ← / → (oder Tippen links/rechts). Leertaste, Enter
 // oder Tippen blaettert weiter.
 //
@@ -20,7 +20,7 @@ import { dracheZeichnen, aufSchirm, teilchenErstellen, teilchenZeichnen, funkenS
 import { neuesSpiel, einsatzBeginnen, einsatzSchritt, einsatzAbschliessen, waehlen, autopilot, tastenAnlauf, regenStaerke } from "./einsatz.js";
 import { szeneBeginnen, szeneWeiter, szeneWaehlen, verhaftet, ausgang } from "./geschichte.js";
 import { hindernisseZeichnen, regenSchleier, regenZeichnen } from "./einsatzbild.js";
-import { tonStarten, tonFuehren, tonEreignis, stummSchalten, istStumm, tonProbe } from "./ton.js";
+import { tonStarten, tonFuehren, tonEreignis, stummSchalten, istStumm, hatMusik, tonProbe } from "./ton.js";
 import { zeileZeichnen, momentZeichnen, titelZeichnen, seiteZeichnen, knopf } from "./schrift.js";
 import { TITEL, AUSGAENGE, NOCHMAL } from "./data/szenen.js";
 
@@ -323,7 +323,8 @@ function schritt(dt, lenkung) {
   tonFuehren({
     tempo: flug.tempo, drehrate: zustand.drehrate || 0, waerme: zustand.waerme, schlag: flug.schlag, zeit: zustand.uhr,
     laut: { einsatz: einsatz?.moment ? 0.4 : 1, frei: 1, titel: 0.6, szene: 0.25, ausgang: 0.5 }[p] ?? 1,
-    regen: w.regen || 0, drache: w.drache
+    regen: w.regen || 0, drache: w.drache,
+    phase: p, imMoment: p === "einsatz" && !!einsatz.moment
   });
   // Die Stimmung folgt langsam - man soll den Wandel spueren, nicht springen sehen
   zustand.waerme += (bildwahl().waerme - zustand.waerme) * Math.min(1, dt * 0.6);
@@ -452,6 +453,12 @@ function schalterZeichnen(W, H) {
   if (istStumm()) { g2.moveTo(x + s * 0.5, y - s * 0.45); g2.lineTo(x + s * 1.2, y + s * 0.45); g2.moveTo(x + s * 1.2, y - s * 0.45); g2.lineTo(x + s * 0.5, y + s * 0.45); }
   else { g2.arc(x + s * 0.2, y, s * 0.6, -0.8, 0.8); g2.moveTo(x + s * 0.2 + s * 1.05 * Math.cos(-0.8), y + s * 1.05 * Math.sin(-0.8)); g2.arc(x + s * 0.2, y, s * 1.05, -0.8, 0.8); }
   g2.stroke();
+  // Mit Musik: eine kleine Note daneben
+  if (hatMusik()) {
+    const nx = x - s * 2.1, ny = y + s * 0.5;
+    g2.beginPath(); g2.ellipse(nx, ny, s * 0.32, s * 0.24, -0.4, 0, Math.PI * 2); g2.fill();
+    g2.beginPath(); g2.moveTo(nx + s * 0.3, ny); g2.lineTo(nx + s * 0.3, ny - s * 1.2); g2.lineTo(nx + s * 0.75, ny - s * 0.9); g2.stroke();
+  }
   g2.restore();
 }
 

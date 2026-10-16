@@ -59,7 +59,8 @@ src/data/szenen.js  Titel, vier Zwischenszenen, fünf Ausgänge
 src/geschichte.js Zwischenszenen und Ausgänge ohne Grafik; alle Regelzahlen oben
 tools/notnagel.mjs  baut beim Build den ganzen Text als verstecktes HTML
 src/einsatzbild.js  Felsnadeln, Pfeile, Blitze, Reiter im Bild; Regen
-src/ton.js        aller Klang aus Web Audio: Wind, Regen, Flügel, Herz, Einzelklänge
+src/ton.js        aller Klang aus Web Audio: Wind, Regen, Flügel, Herz, Einzelklänge,
+                  Musik als Versuch (?ohnemusik; Lautsprecher: mit Musik → ohne → stumm)
 src/schrift.js    Text im Canvas: Zeilen, Momente, Textseiten
 src/main.js       Phasen, Schleife, Eingabe, Vorführmodus (Taste V auf dem Titel)
                   Erproben: ?einsatz= ?szene= ?ausgang= ?erprobung ?frei ?vorfuehren

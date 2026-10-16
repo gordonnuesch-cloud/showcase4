@@ -8,8 +8,12 @@
 // zischender Wind; warm heisst tiefer, weicher, mit einem Puls darunter.
 
 let k = null, haupt, windBand, windTief, windGain, tiefGain, regenGain, momentGain = null;
-let stumm = false, letzterSchlag = 0, letzterPuls = 0;
-try { stumm = localStorage.getItem("schwingen-stumm") === "1"; } catch { /* ohne Speicher eben laut */ }
+let stumm = false, mitMusik = true, letzterSchlag = 0, letzterPuls = 0;
+try {
+  stumm = localStorage.getItem("schwingen-stumm") === "1";
+  mitMusik = localStorage.getItem("schwingen-musik") !== "0";
+} catch { /* ohne Speicher eben laut */ }
+if (new URLSearchParams(location.search).has("ohnemusik")) mitMusik = false;
 
 const LAUTSTAERKE = 0.7;
 
@@ -43,6 +47,7 @@ export function tonStarten() {
   const begrenzer = k.createDynamicsCompressor();
   begrenzer.threshold.value = -14; begrenzer.ratio.value = 6;
   haupt.connect(begrenzer).connect(k.destination);
+  musikAufbauen(begrenzer);
 
   // Wind: ein Band, das mit der Kaelte nach oben wandert, und ein tiefes Grollen
   windBand = k.createBiquadFilter(); windBand.type = "bandpass"; windBand.Q.value = 0.7; windBand.frequency.value = 700;
@@ -59,13 +64,20 @@ export function tonStarten() {
   quelle().connect(hp).connect(lp).connect(regenGain).connect(haupt);
 }
 
+/** Drei Stufen: Ton mit Musik → Ton ohne Musik → stumm → wieder von vorn. */
 export function stummSchalten() {
-  stumm = !stumm;
-  try { localStorage.setItem("schwingen-stumm", stumm ? "1" : "0"); } catch { /* egal */ }
-  if (k) haupt.gain.setTargetAtTime(stumm ? 0 : LAUTSTAERKE, k.currentTime, 0.1);
+  if (!stumm && mitMusik) mitMusik = false;
+  else if (!stumm) stumm = true;
+  else { stumm = false; mitMusik = true; }
+  try { localStorage.setItem("schwingen-stumm", stumm ? "1" : "0"); localStorage.setItem("schwingen-musik", mitMusik ? "1" : "0"); } catch { /* egal */ }
+  if (k) {
+    haupt.gain.setTargetAtTime(stumm ? 0 : LAUTSTAERKE, k.currentTime, 0.1);
+    musikBus.gain.setTargetAtTime(stumm || !mitMusik ? 0 : MUSIK, k.currentTime, 0.4);
+  }
   return stumm;
 }
 export const istStumm = () => stumm;
+export const hatMusik = () => mitMusik && !stumm;
 
 /**
  * Jeden Frame: Dauerschichten nachfuehren.
@@ -73,6 +85,7 @@ export const istStumm = () => stumm;
  */
 export function tonFuehren(z) {
   if (!k || k.state !== "running") return;
+  musikFuehren(z);
   const t = k.currentTime;
   const kalt = 1 - z.waerme, kurve = Math.min(1, Math.abs(z.drehrate) * 1.5);
   windBand.frequency.setTargetAtTime(380 + kalt * 900 + kurve * 400, t, 0.3);
@@ -184,4 +197,88 @@ export function tonProbe() {
   ["vorbei", "knapp", "treffer", "pfeile", "donner", "moment", "naehe", "distanz", "bemerkt", "antwort", "aufatmen", "seite"].forEach((a) => tonEreignis(a, 0.7));
   ["grenze", "geheimnis", "pflicht", "tribunal", "sturz"].forEach((a) => tonEreignis("ausgang", a));
   return k ? k.state : "fehlt";
+}
+
+// --- Musik (Versuch) ---------------------------------------------------------------
+// Ein Klangteppich aus langsamen Akkorden in d-Moll (d - B - F - C), dazu ein
+// Motiv aus fuenf Toenen auf einer weichen Glocke, alles mit Nachhall. Die
+// Bindung entscheidet, wie viel davon da ist: kalt nur leere Quinten und ein
+// Motiv, das nach drei Toenen abbricht; warm volle Akkorde mit Terz und Bass,
+// das Motiv vollstaendig und aufgeloest. Im Moment haelt die Musik den Atem
+// an, am Boden ist sie kaum zu hoeren.
+
+const MUSIK = 0.4;
+const AKKORDE = [[50, 57, 62, 65], [46, 53, 58, 62], [53, 60, 65, 69], [48, 55, 60, 64]];
+const MOTIV = [[69, 0.7], [74, 0.7], [76, 0.7], [77, 1.4], [76, 2.2]];
+const AUFLOESUNG = [[74, 3]];
+const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+let musikBus = null, hall = null, musikLaut = null, naechsterAkkord = 0, akkordNr = 0, motivZaehler = 0;
+
+function nachhall(sek = 3.2) {
+  // Rauschen, das exponentiell verklingt - ein Raum aus Code
+  const n = k.sampleRate * sek, b = k.createBuffer(2, n, k.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3.2); }
+  const v = k.createConvolver(); v.buffer = b; return v;
+}
+
+function musikAufbauen(ziel) {
+  musikBus = k.createGain(); musikBus.gain.value = stumm || !mitMusik ? 0 : MUSIK;
+  musikLaut = k.createGain(); musikLaut.gain.value = 0;          // folgt der Phase
+  hall = nachhall();
+  const nass = k.createGain(); nass.gain.value = 0.55;
+  musikLaut.connect(musikBus);
+  musikLaut.connect(hall).connect(nass).connect(musikBus);
+  musikBus.connect(ziel);
+  naechsterAkkord = k.currentTime + 0.5;
+}
+
+function flaeche(midi, beginn, dauer, laut, hell) {
+  // Zwei leicht verstimmte Dreiecke durch einen weichen Tiefpass
+  const f = k.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 500 + hell * 1700; f.Q.value = 0.3;
+  const g = k.createGain();
+  g.gain.setValueAtTime(0.0001, beginn);
+  g.gain.exponentialRampToValueAtTime(laut, beginn + dauer * 0.35);
+  g.gain.setValueAtTime(laut, beginn + dauer * 0.6);
+  g.gain.exponentialRampToValueAtTime(0.0001, beginn + dauer * 1.25);
+  f.connect(g).connect(musikLaut);
+  for (const verstimmt of [-4, 4]) {
+    const o = k.createOscillator(); o.type = "triangle"; o.frequency.value = hz(midi); o.detune.value = verstimmt;
+    o.connect(f); o.start(beginn); o.stop(beginn + dauer * 1.3);
+  }
+}
+
+function glocke(midi, beginn, laut) {
+  const g = k.createGain();
+  g.gain.setValueAtTime(0.0001, beginn);
+  g.gain.exponentialRampToValueAtTime(laut, beginn + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, beginn + 2.8);
+  g.connect(musikLaut);
+  [[1, 1], [2.01, 0.25], [3.02, 0.08]].forEach(([teil, anteil]) => {
+    const o = k.createOscillator(); o.frequency.value = hz(midi) * teil;
+    const a = k.createGain(); a.gain.value = anteil;
+    o.connect(a).connect(g); o.start(beginn); o.stop(beginn + 2.9);
+  });
+}
+
+function musikFuehren(z) {
+  const t = k.currentTime;
+  const ziel = { einsatz: z.imMoment ? 0.55 : 1, frei: 0.8, titel: 0.9, szene: 0.35, ausgang: 0.25 }[z.phase] ?? 0.8;
+  musikLaut.gain.setTargetAtTime(ziel, t, z.imMoment ? 0.8 : 1.5);
+  if (t < naechsterAkkord - 0.1) return;
+
+  // Naechster Akkord, etwas im Voraus geplant
+  const beginn = Math.max(t, naechsterAkkord), dauer = 9, w = z.waerme;
+  const akkord = AKKORDE[akkordNr % AKKORDE.length];
+  // Kalt: nur Grundton und Quinte. Warm: alle Toene, dazu der Bass eine Oktave tiefer
+  const toene = w < 0.35 ? [akkord[0] + 12, akkord[1] + 12] : w < 0.7 ? akkord.slice(0, 3) : [akkord[0] - 12, ...akkord];
+  toene.forEach((m) => flaeche(m, beginn, dauer, 0.028 + 0.012 * w, w));
+  // Im Moment kein Motiv - die Musik haelt den Atem an
+  if (!z.imMoment && akkordNr % 2 === 0 && z.phase !== "szene") {
+    let s = beginn + 1.5;
+    const phrase = w < 0.35 ? MOTIV.slice(0, 3) : w < 0.7 ? MOTIV : [...MOTIV, ...AUFLOESUNG];
+    for (const [m, l] of phrase) { glocke(m + (w > 0.7 && motivZaehler % 2 ? -12 : 0), s, 0.045); s += l; }
+    motivZaehler++;
+  }
+  akkordNr++;
+  naechsterAkkord = beginn + dauer * 0.85;     // Akkorde ueberlappen sanft
 }

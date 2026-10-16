@@ -62,6 +62,7 @@ function formZeichnen(g, W, H, f, t) {
 
   // Fluegel: Schulter am Halsansatz, Handgelenk, Spitze weit ausserhalb des Bildes
   const schlag = Math.sin(f.schlag * 2.0);
+  const fluegel = {};
   for (const seite of [-1, 1]) {
     // Flach und tief im Bild: der Himmel bleibt die Hauptsache
     const sx = mitte + seite * 110 * s, sy = H * 1.0;
@@ -70,6 +71,7 @@ function formZeichnen(g, W, H, f, t) {
     g.beginPath();
     g.moveTo(sx, sy);
     g.quadraticCurveTo(mitte + seite * W * 0.13, H * (0.8 - schlag * 0.02), hx, hy);   // Knochenkante
+    fluegel[seite] = { sx, sy, cx: mitte + seite * W * 0.13, cy: H * (0.8 - schlag * 0.02), hx, hy };
     g.quadraticCurveTo(mitte + seite * W * 0.5, H * (0.78 - schlag * 0.06), tx, ty);
     // Gefranste Hinterkante: Bogen zwischen den Fingerknochen
     const zacken = 5;
@@ -126,7 +128,7 @@ function formZeichnen(g, W, H, f, t) {
     g.beginPath();
     g.moveTo(kx + seite * 40 * s, ky + 26 * s); g.lineTo(kx + seite * 78 * s, ky + 50 * s); g.lineTo(kx + seite * 34 * s, ky + 40 * s); g.fill();
   }
-  return { mitte, kx, ky, p: [p0, p1, p2, p3], s };
+  return { fluegel, mitte, kx, ky, p: [p0, p1, p2, p3], s };
 }
 
 /**
@@ -221,17 +223,22 @@ export function dracheZeichnen(g, W, H, f, licht, t) {
       const z = (n) => { const x = Math.sin((i + 1) * 91.7 + n * 13.3) * 43758.5453; return x - Math.floor(x); };
       let x0, y0, rx, ry;
       if (i % 3 === 2) {
-        // am Fluegel, nahe der Schulter
-        const seite = z(1) < 0.5 ? -1 : 1;
-        x0 = W / 2 + seite * (0.14 + z(2) * 0.16) * W; y0 = H * (0.88 + z(3) * 0.05); rx = seite * (55 + z(4) * 30) * s; ry = -10 * s;
+        // am Fluegel: auf der Knochenkante verankert, knapp darunter in der
+        // Flughaut - so schlaegt die Narbe mit dem Fluegel mit
+        const seite = z(1) < 0.5 ? -1 : 1, fl = geo.fluegel[seite], u = 0.35 + z(2) * 0.5, v = 1 - u;
+        const qx = v * v * fl.sx + 2 * v * u * fl.cx + u * u * fl.hx, qy = v * v * fl.sy + 2 * v * u * fl.cy + u * u * fl.hy;
+        x0 = qx; y0 = qy + (fl.sy - qy) * (0.18 + z(3) * 0.2);
+        const kx = 2 * v * (fl.cx - fl.sx) + 2 * u * (fl.hx - fl.cx), ky = 2 * v * (fl.cy - fl.sy) + 2 * u * (fl.hy - fl.cy), l = Math.hypot(kx, ky) || 1;
+        const lang = (40 + z(4) * 25) * s;
+        rx = kx / l * lang; ry = ky / l * lang;
       } else {
         const q = bez(...geo.p, 0.18 + z(2) * 0.5), seite = z(1) < 0.5 ? -1 : 1;
         const b = (175 * Math.pow(1 - 0.4, 1.25) + 30) * s * (0.2 + z(3) * 0.6);
         x0 = q.x + seite * q.nx * b; y0 = q.y + seite * q.ny * b; rx = seite * (34 + z(5) * 20) * s; ry = (z(4) - 0.5) * 40 * s;
       }
       const neu = i === narben - 1 ? (licht.frisch || 0) : 0;
-      e.strokeStyle = neu > 0.05 ? `rgba(255,${Math.round(150 + 60 * (1 - neu))},${Math.round(120 + 80 * (1 - neu))},${0.6 + 0.4 * neu})` : "rgba(232,214,204,0.62)";
-      e.lineWidth = (2.2 + neu * 1.8) * s;
+      e.strokeStyle = neu > 0.05 ? `rgba(255,${Math.round(150 + 60 * (1 - neu))},${Math.round(120 + 80 * (1 - neu))},${0.6 + 0.4 * neu})` : "rgba(226,210,200,0.3)";
+      e.lineWidth = (1.5 + neu * 1.8) * s;
       e.beginPath(); e.moveTo(x0, y0);
       for (let j = 1; j <= 5; j++) e.lineTo(x0 + rx * j / 5 + (z(5 + j) - 0.5) * 9 * s, y0 + ry * j / 5 + (z(9 + j) - 0.5) * 9 * s);
       e.stroke();

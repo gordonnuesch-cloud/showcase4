@@ -29,6 +29,7 @@ export function hindernisseZeichnen(g, W, H, e, kam, licht, t, flug) {
     if (h.art === "hoch") { salveZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, flug.hoehe); continue; }
     if (h.art === "tief") { patrouilleZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, flug.hoehe); continue; }
     const rand = h.toleranz + 0.04;
+    luekeZeichnen(g, W, H, s, kam, h, nah, sicht);
     for (const seite of [-1, 1]) {
       for (let i = 0; i < 16; i++) {
         const k = h.saat + i * 13.7 + (seite > 0 ? 500 : 0);
@@ -41,6 +42,17 @@ export function hindernisseZeichnen(g, W, H, e, kam, licht, t, flug) {
     }
   }
   return blitzlicht;
+}
+
+/** Ein leichter Lichtschein in der Luecke: dort ist der Himmel frei. */
+function luekeZeichnen(g, W, H, s, kam, h, nah, sicht) {
+  const p = aufSchirm(kam, richtung(h.ziel, 0.05), W, H);
+  if (!p) return;
+  const breit = Math.max(s * 60, Math.tan(h.toleranz) * brennweite(W, H) * H);
+  const schein = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], breit * 1.4);
+  schein.addColorStop(0, `rgba(255,244,220,${0.16 * sicht * Math.min(1, nah * 2)})`); schein.addColorStop(1, "rgba(255,244,220,0)");
+  g.save(); g.fillStyle = schein; g.translate(p[0], p[1]); g.scale(1, 2.2); g.translate(-p[0], -p[1]);
+  g.beginPath(); g.arc(p[0], p[1], breit * 1.4, 0, Math.PI * 2); g.fill(); g.restore();
 }
 
 function felsen(g, W, H, s, kam, gier, nah, k, farbe, sicht, t, seite, dunst) {
@@ -73,11 +85,54 @@ const entfernung = (nah) => 0.35 + (1 - Math.min(nah, 1)) * 6;
 const CLOUD = -0.75;   // Wolkenobergrenze wie im Shader (OBEN)
 
 /**
+ * Die Grenze sichtbar machen: eine Linie in der Hoehe, ab der man sicher ist,
+ * und ein Dunst auf der gefaehrlichen Seite. Bei den Salven warm wie die
+ * Funken, bei den Reitern kalt. gefahr: "unten" | "oben".
+ */
+function grenzeZeichnen(g, W, H, s, kam, hoehe, ziel, d, farbe, a, gefahr) {
+  const punkte = [];
+  for (let i = 0; i <= 24; i++) {
+    const p = aufSchirm(kam, richtung(kam[0] + (i / 24 - 0.5) * 3.4, Math.atan2(ziel - hoehe, d)), W, H);
+    if (p) punkte.push(p);
+  }
+  if (punkte.length < 2) return;
+  g.save();
+  // Dunst auf der Seite der Gefahr, zum Bildrand hin auslaufend
+  const rand = gefahr === "unten" ? H * 1.2 : -H * 0.2;
+  const mitteY = punkte[punkte.length >> 1][1];
+  const dunst = g.createLinearGradient(0, mitteY, 0, mitteY + (rand - mitteY) * 0.6);
+  const dunkel = gefahr === "oben" ? farbe.map((x) => x * 0.35) : farbe;   // ueber den Wolken: dunkler Schleier, nicht heller
+  dunst.addColorStop(0, rgb(dunkel, 0.3 * a)); dunst.addColorStop(1, rgb(dunkel, 0));
+  g.fillStyle = dunst;
+  g.beginPath(); g.moveTo(punkte[0][0], rand);
+  for (const p of punkte) g.lineTo(p[0], p[1]);
+  g.lineTo(punkte[punkte.length - 1][0], rand); g.closePath(); g.fill();
+  // Die Linie selbst, leicht schimmernd
+  g.strokeStyle = rgb(farbe, 0.95 * a);
+  g.lineWidth = Math.max(2, s * 3.2);
+  g.shadowColor = rgb(farbe, a); g.shadowBlur = s * 16;
+  g.setLineDash([s * 16, s * 9]); g.lineDashOffset = -performance.now() * 0.03 * s;
+  g.beginPath(); punkte.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.stroke();
+  // Pfeilspitzen zur sicheren Seite: hinauf ueber die Salve, hinab unter die Reiter
+  g.setLineDash([]); g.shadowBlur = s * 8;
+  const r = gefahr === "unten" ? -1 : 1, gr = s * 17;
+  g.lineWidth = Math.max(2, s * 3.5);
+  for (const i of [3, 6, 9, 12, 15, 18, 21]) {
+    const p = punkte[Math.min(i, punkte.length - 1)];
+    const y = p[1] + r * gr * 1.4;
+    g.beginPath(); g.moveTo(p[0] - gr, y - r * gr * 0.6); g.lineTo(p[0], y + r * gr * 0.4); g.lineTo(p[0] + gr, y - r * gr * 0.6); g.stroke();
+  }
+  g.restore();
+}
+
+/**
  * Ballistenbolzen steigen in Bogen aus den Wolken bis knapp unter die Grenze
  * h.hoehe und zerstieben dort. Wer darueber fliegt, sieht sie unter sich.
  */
 function salveZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, hoehe) {
   const d = entfernung(nah), gross = s * 1000;
+  // Die Funkenlinie: darueber ist es sicher; darunter liegt roetlicher Dunst
+  grenzeZeichnen(g, W, H, s, kam, hoehe, h.hoehe, d, [1, 0.62, 0.35], sicht * Math.min(1, nah * 3), "unten");
   g.save();
   g.lineCap = "round";
   for (let i = 0; i < 70; i++) {
@@ -115,6 +170,8 @@ function salveZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, hoehe) {
 /** Feindliche Reiter auf eurer Hoehe und darueber; wer tief genug geht, hat sie ueber sich. */
 function patrouilleZeichnen(g, W, H, s, kam, h, nah, farbe, sicht, t, hoehe) {
   const d = entfernung(nah);
+  // Eine kalte Linie zeigt, wie tief man muss; darueber liegt ihr Blickfeld
+  grenzeZeichnen(g, W, H, s, kam, hoehe, h.hoehe + 0.04, d, [0.78, 0.88, 1], sicht * Math.min(1, nah * 3), "oben");
   for (let i = 0; i < 16; i++) {
     const k = h.saat + i * 5.3;
     const gier = kam[0] + (i / 15 - 0.5) * 2.8 + (zufall(k) - 0.5) * 0.1;

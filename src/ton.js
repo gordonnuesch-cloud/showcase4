@@ -120,7 +120,7 @@ const schub = (s) => stoss(0.45, "lowpass", 260, 90, s, 0.8);
 const herz = (s) => { sinus(58, 0.18, s, 0.008, 40); sinus(52, 0.22, s * 0.7, 0.008, 38, 0.24); };
 
 // --- Einzelklaenge ------------------------------------------------------------------
-/** art: vorbei | knapp | treffer | pfeile | donner | moment | naehe | distanz | seite | ausgang */
+/** art: vorbei | knapp | treffer | pfeile | donner | moment | naehe | distanz | bemerkt | antwort | aufatmen | seite | ausgang */
 export function tonEreignis(art, wert) {
   if (!k || k.state !== "running") return;
   switch (art) {
@@ -149,8 +149,26 @@ export function tonEreignis(art, wert) {
       sinus(146.8, 5, 0.06, 1.6, null, 0, momentGain);
       sinus(220, 5, 0.04, 2.2, null, 0, momentGain);
       break;
-    case "naehe": if (momentGain) { sinus(185, 3.5, 0.05, 0.8, null, 0, momentGain); sinus(293.7, 3.5, 0.03, 1.2, null, 0.2, momentGain); } break;
-    case "distanz": if (momentGain) momentGain.gain.setTargetAtTime(0.0001, k.currentTime, 0.5); break;
+    case "naehe":
+      herz(0.45);
+      if (momentGain) { sinus(185, 3.5, 0.05, 0.8, null, 0, momentGain); sinus(293.7, 3.5, 0.03, 1.2, null, 0.2, momentGain); }
+      break;
+    case "distanz":
+      // Ein kalter Windstoss; die Toene des Moments verwehen
+      stoss(1.1, "bandpass", 2400, 900, 0.3, 0.9);
+      if (momentGain) momentGain.gain.setTargetAtTime(0.0001, k.currentTime, 0.5);
+      break;
+    case "bemerkt":
+      // Kalt und kurz: zwei hohe, leicht verstimmte Toene, die schnell vergehen
+      sinus(1318, 0.9, 0.025, 0.01, 1240); sinus(1325, 0.9, 0.02, 0.01, 1250, 0.03);
+      stoss(0.5, "highpass", 5000, 3500, 0.04, 0.7);
+      break;
+    case "antwort":
+      // Er antwortet: ein kraeftiger Fluegelschlag und ein warmer Ton darunter
+      stoss(0.6, "lowpass", 340, 80, 0.35, 0.9);
+      sinus(220, 1.4, 0.05, 0.08); sinus(330, 1.2, 0.03, 0.12, null, 0.08);
+      break;
+    case "aufatmen": stoss(0.9, "lowpass", 700, 250, 0.08, 0.6); break;
     case "seite": stoss(0.05, "highpass", 2400, 1800, 0.05, 0.6); break;
     case "ausgang": {
       const akkord = { grenze: [146.8, 220, 293.7, 370, 440], geheimnis: [146.8, 220, 277.2, 329.6],
@@ -163,7 +181,7 @@ export function tonEreignis(art, wert) {
 
 /** Alles einmal anspielen - fuer den Rauchtest. */
 export function tonProbe() {
-  ["vorbei", "knapp", "treffer", "pfeile", "donner", "moment", "naehe", "distanz", "seite"].forEach((a) => tonEreignis(a, 0.7));
+  ["vorbei", "knapp", "treffer", "pfeile", "donner", "moment", "naehe", "distanz", "bemerkt", "antwort", "aufatmen", "seite"].forEach((a) => tonEreignis(a, 0.7));
   ["grenze", "geheimnis", "pflicht", "tribunal", "sturz"].forEach((a) => tonEreignis("ausgang", a));
   return k ? k.state : "fehlt";
 }

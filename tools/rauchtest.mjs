@@ -31,6 +31,10 @@ const bilder = [
   ["06-e3-blitz", "einsatz=3&uhr=41&bindung=20"], ["07-e4-reiter", "einsatz=4&uhr=28.5&bindung=70"],
   // Hoehe: Salve kurz nach dem Auftauchen (noch unten) und kurz vor der Ankunft (gestiegen)
   ["07a-e2-salve-frueh", "einsatz=2&uhr=24.4&bindung=60"], ["07b-e2-salve-spaet", "einsatz=2&uhr=26.6&bindung=60", true],
+  // Narben am Drachen: frueher eingesammelt, dazu der Flug bis hier
+  ["07c-e3-narben", "einsatz=3&uhr=20&bindung=60&narben=2,3"],
+  // Hoher Verdacht: die Szene zeigt den wachsamen Absatz
+  ["08b-szene1-wachsam", "szene=1&zufall=1&verdacht=70&schritte=3"],
   // Zwischenszenen: weitergeblaettert; zufall=0 erzwingt die Entdeckung, 1 schliesst sie aus
   ["08-szene1-ruhig", "szene=1&zufall=1&schritte=2"], ["09-szene2-entdeckt", "szene=2&zufall=0&verdacht=50&schritte=2"],
   ["10-szene3-folge", "szene=3&zufall=0&verdacht=50&schritte=3&wahl=links"], ["11-szene4-tuer", "szene=4&schritte=2", true],
@@ -110,6 +114,18 @@ const nachher = await seite.evaluate(() => ({ b: window.__flug.spiel.bindung, of
 if (nachher.b <= vorher || nachher.offen) fehler.push(`Live: Nähe zulassen wirkt nicht (Bindung ${vorher} → ${nachher.b})`);
 await seite.waitForTimeout(1500);
 await seite.screenshot({ path: `${ORDNER}/20-e1-folge-live.png` });
+
+// Live: Naehe in Formation, sicher bemerkt (zufall=0) - erst Glut, dann das Zeichen
+await seite.goto(`${basis}?einsatz=2&uhr=42.5&q=niedrig&zufall=0`);
+await seite.waitForFunction(() => window.__flug?.einsatz.moment && window.__flug.einsatz.momentSeit > 0.8, null, { timeout: 30000 })
+  .catch(() => fehler.push("Live: der Moment bei 43 s öffnet sich nicht"));
+await seite.keyboard.press("ArrowRight");
+await seite.waitForTimeout(400);
+await seite.screenshot({ path: `${ORDNER}/21-naehe-glut-live.png` });
+await seite.waitForFunction(() => window.__flug.einsatz.zeile?.wer === "bemerkt", null, { timeout: 15000 })
+  .catch(() => fehler.push("Live: bemerkte Nähe zeigt kein Zeichen"));
+await seite.waitForTimeout(1200);
+await seite.screenshot({ path: `${ORDNER}/22-bemerkt-live.png` });
 
 // Live: eine Zwischenszene durchblaettern, entdeckt werden, Tamsin decken lassen, weiter in Einsatz 2
 await seite.goto(`${basis}?szene=1&zufall=0&verdacht=50&q=niedrig`);

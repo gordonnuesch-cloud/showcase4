@@ -2,7 +2,7 @@
 // Reine Funktionen auf einfachen Objekten, damit tools/ denselben Code
 // durchspielen kann wie das Spiel.
 
-import { EINSAETZE, HINDERNISSE } from "./data/einsaetze.js";
+import { EINSAETZE, HINDERNISSE, BEMERKT } from "./data/einsaetze.js";
 import { fliegen } from "./flug.js";
 
 /**
@@ -42,7 +42,7 @@ export function einsatzBeginnen(nr) {
 
 /**
  * Ein Zeitschritt. Gibt Ereignisse zurueck ("treffer", "knapp", "frei",
- * "moment", "zeile", "auftauchen"), die Grafik und Ton aufgreifen koennen.
+ * "moment", "zeile", "auftauchen", "bemerkt"), die Grafik und Ton aufgreifen koennen.
  */
 export function einsatzSchritt(e, dt, flug) {
   const ereignisse = [];
@@ -74,6 +74,10 @@ export function einsatzSchritt(e, dt, flug) {
       e.zeile = { text: x.text, wer: x.wer, seit: e.uhr };
       ereignisse.push({ art: "zeile", wer: x.wer });
     }
+  }
+  if (e.nachZeile && e.uhr >= e.nachZeile.ab) {
+    e.zeile = { ...e.nachZeile, seit: e.uhr }; e.nachZeile = null;
+    ereignisse.push({ art: "bemerkt" });
   }
 
   // Hindernisse: die Luecke wandert (seitlich) oder die Grenze steigt und
@@ -117,6 +121,13 @@ export function waehlen(e, spiel, seite) {
   spiel.wahlen.push({ einsatz: e.nr, moment: e.momentNr, seite });
   e.zeile = { text: m[seite].folge, wer: "folge", seit: e.uhr };
   e.moment = null;
+  // Bemerkt? Dann folgt nach der Folge ein leises Zeichen
+  if (w.verdacht > 0) {
+    const liste = BEMERKT[m.zeugen];
+    spiel.bemerkt = (spiel.bemerkt || 0) + 1;
+    e.nachZeile = { text: liste[(spiel.bemerkt - 1) % liste.length], wer: "bemerkt", ab: e.uhr + 3.2 + m[seite].folge.length * 0.055 };
+  }
+  return w;
 }
 
 /** Narben zaehlen fuer die Inspektion und den Sturz; jeder Treffer zehrt auch an der Bindung. */

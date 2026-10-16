@@ -31,6 +31,25 @@ export const HINDERNISSE = {
   staffel: { art: "seitlich", vorlauf: 5, toleranz: 0.22, weite: 0.18, takt: 1.7 }
 };
 
+// Wenn Naehe bemerkt wird, kommt nach der Folge eine dieser Zeilen - ohne
+// Erklaerung, nur das Zeichen. Bleibt sie unbemerkt, bleibt es still.
+export const BEMERKT = {
+  allein: [
+    "Auf dem Grat steht ein Posten und sieht herauf.",
+    "Unten, zwischen den Wolken, blitzt ein Fernrohr.",
+    "Ein Kurierdrache kreuzt weit hinter euch. Er dreht nicht ab."
+  ],
+  formation: [
+    "Vey sieht sich um. Länger als nötig.",
+    "Hinter dir verliert eine Reiterin kurz den Abstand. Sie hat hergesehen.",
+    "Am Ende der Staffel hebt jemand die Hand an den Helm, als wollte er sich etwas merken."
+  ],
+  lager: [
+    "Unten bleibt eine Wache stehen und hebt die Laterne.",
+    "Am Tor wird ein Name ins Buch geschrieben."
+  ]
+};
+
 export const EINSAETZE = [
   {
     titel: "Morgengrauen über den Klippen",

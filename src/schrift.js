@@ -41,7 +41,8 @@ export function zeileZeichnen(g, W, H, zeile, uhr) {
   const stil = {
     ilvar: [`italic 500 ${fs}px ${SCHRIFT}`, "rgba(255,214,170,A)"],
     hinweis: [`600 ${fs}px ${SCHRIFT}`, "rgba(235,235,240,A)"],
-    folge: [`italic 500 ${fs}px ${SCHRIFT}`, "rgba(250,244,232,A)"]
+    folge: [`italic 500 ${fs}px ${SCHRIFT}`, "rgba(250,244,232,A)"],
+    bemerkt: [`italic 500 ${fs}px ${SCHRIFT}`, "rgba(190,210,240,A)"]
   }[zeile.wer] || [`500 ${fs}px ${SCHRIFT}`, "rgba(250,244,232,A)"];
   g.save();
   const band = g.createLinearGradient(0, 0, 0, H * 0.3);

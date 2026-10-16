@@ -3,6 +3,7 @@
 // Eine Zwischenszene: Ort, Absaetze, die man nacheinander aufdeckt, optional
 // eine eigene Entscheidung (tuer), dann die Probe auf Entdeckung. Wird man
 // entdeckt, gibt es zwei Auswege: Tamsin deckt dich, oder du zeigst Distanz.
+// wachsam: ein Absatz, der nur bei hohem Verdacht erscheint - die Welt sieht genauer hin.
 
 export const TITEL = {
   name: "Schwingen",
@@ -26,7 +27,8 @@ export const SZENEN = [
       deckt: { wahl: "Tamsin ins Vertrauen ziehen", folge: "Tamsin sieht dich lange an. »Ich habe nichts gesehen. Diesmal.«" },
       distanz: { wahl: "Es abtun: Dienst ist Dienst", folge: "»Er ist ein Drache, ich bin seine Reiterin.« Du sagst es laut genug, dass die Stallwache es hört. Er hört es auch." }
     },
-    ruhig: "Sie nickt, als hätte sie eine andere Antwort erwartet, und geht. Der Sattel bleibt liegen."
+    ruhig: "Sie nickt, als hätte sie eine andere Antwort erwartet, und geht. Der Sattel bleibt liegen.",
+    wachsam: "Auf dem Wehrgang stehen heute mehr Wachen als sonst."
   },
   {
     ort: "Die Horste, früh am Morgen",
@@ -40,7 +42,8 @@ export const SZENEN = [
       deckt: { wahl: "Tamsin für dich sprechen lassen", folge: "Tamsin tritt vor: Sie habe ihn so abgerichtet, für die Formation. Vey schreibt es auf. Tamsin sieht dich nicht an." },
       distanz: { wahl: "Ihn vor allen zurechtweisen", folge: "Du weist ihn scharf zurecht, vor der ganzen Reihe. Er senkt den Kopf. Vey geht weiter." }
     },
-    ruhig: "Vey nickt dem Schreiber zu und geht weiter. Erst als sie um die Ecke ist, merkst du, dass du die Luft angehalten hast."
+    ruhig: "Vey nickt dem Schreiber zu und geht weiter. Erst als sie um die Ecke ist, merkst du, dass du die Luft angehalten hast.",
+    wachsam: "Der Schreiber hat eine zweite Liste dabei. Euer Horst steht darauf."
   },
   {
     ort: "Das Zelt der Hauptfrau, nachts",
@@ -53,7 +56,8 @@ export const SZENEN = [
       deckt: { wahl: "Tamsin als Zeugin nennen", folge: "Tamsin wird geholt und bezeugt, was du brauchst. Vey schreibt nichts auf. Das ist schlimmer." },
       distanz: { wahl: "»Ein Drache des Regiments.«", folge: "»Ein Drache des Regiments, Hauptfrau.« Sie sieht dich an, bis du wegsiehst. Dann lässt sie dich gehen." }
     },
-    ruhig: "»Gut geflogen«, sagt sie und lässt das Buch zu. »Geh schlafen.«"
+    ruhig: "»Gut geflogen«, sagt sie und lässt das Buch zu. »Geh schlafen.«",
+    wachsam: "Vor dem Zelt stehen zwei Wachen, wo sonst keine steht."
   },
   {
     ort: "Das Lager, nach Mitternacht",
@@ -72,7 +76,9 @@ export const SZENEN = [
       deckt: { wahl: "Tamsin sagen lassen, sie sei es gewesen", folge: "Tamsin sagt, sie habe nicht schlafen können und sei bei dir gewesen. Die Wache glaubt ihr. Oder tut so." },
       distanz: { wahl: "Vor der Wache über Drachen spotten", folge: "Du sagst etwas über Drachen, das man im Lager gern hört. Die Wache lacht. Irgendwo hört er es." }
     },
-    ruhig: "Am Morgen ist der Kies vor deinem Zelt glatt gerecht. Niemand fragt."
+    ruhig: "Am Morgen ist der Kies vor deinem Zelt glatt gerecht. Niemand fragt.",
+    wachsam: "Die Wachfeuer brennen heller als sonst. Jemand hat Holz nachgelegt.",
+    bemerkt: "Irgendwo im Lager geht eine Laterne an."
   }
 ];
 

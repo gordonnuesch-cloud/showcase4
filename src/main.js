@@ -8,7 +8,7 @@
 //
 // Erproben:   ?einsatz=1..5 · ?szene=1..4 · ?ausgang=grenze|geheimnis|tribunal|pflicht|sturz
 //             ?erprobung (Werte unten, [ ] Bindung, Q) · ?frei (freier Flug, 1-5 Tageszeit)
-//             ?bindung= ?verdacht= ?zufall=0..1 (Entdeckung erzwingen oder ausschliessen)
+//             ?bindung= ?verdacht= ?zufall=0..1 (Entdeckung erzwingen oder ausschliessen) ?narben=2,1,…
 //             ?ohnewebgl (die 2D-Fassung des Himmels)
 // Testbilder: ?t=Sek, dazu ?uhr=Sek (Einsatz vorrechnen) oder ?schritte=n (weiterblaettern)
 
@@ -16,7 +16,7 @@ import { himmelErstellen, QUALITAET } from "./himmel.js";
 import { himmel2dErstellen } from "./himmel2d.js";
 import { stimmung, TAGESZEITEN } from "./stimmung.js";
 import { neuerFlug, fliegen, kamera, kennwerte } from "./flug.js";
-import { dracheZeichnen, aufSchirm, teilchenErstellen, teilchenZeichnen } from "./drache.js";
+import { dracheZeichnen, aufSchirm, teilchenErstellen, teilchenZeichnen, funkenStoss, stoesseZeichnen } from "./drache.js";
 import { neuesSpiel, einsatzBeginnen, einsatzSchritt, einsatzAbschliessen, waehlen, autopilot, tastenAnlauf, regenStaerke } from "./einsatz.js";
 import { szeneBeginnen, szeneWeiter, szeneWaehlen, verhaftet, ausgang } from "./geschichte.js";
 import { hindernisseZeichnen, regenSchleier, regenZeichnen } from "./einsatzbild.js";
@@ -34,6 +34,7 @@ const spiel = neuesSpiel();
 if (param.has("bindung")) spiel.bindung = Number(param.get("bindung"));
 if (param.has("verdacht")) spiel.verdacht = Number(param.get("verdacht"));
 if (param.has("zufall")) { const z = Number(param.get("zufall")); spiel.zufall = () => z; }
+if (param.has("narben")) spiel.narben = param.get("narben").split(",").map(Number);
 
 const zustand = {
   phase: "titel",                       // titel | einsatz | szene | ausgang | frei
@@ -43,7 +44,8 @@ const zustand = {
   waerme: kennwerte(spiel.bindung).waerme,
   q: QUALITAET[param.get("q")] || QUALITAET.hoch,
   automatisch: !param.has("q"),
-  fps: 0, erschuetterung: 0, blitz: 0, letzteAktion: -1, leuchten: 6
+  fps: 0, erschuetterung: 0, blitz: 0, letzteAktion: -1, leuchten: 6,
+  aufgluehen: 0, frisch: 0, kaelte: 0      // kurze Antworten auf Wahl, Ausweichen, Treffer
 };
 let einsatz = null, szene = null, ende = null;
 
@@ -114,6 +116,12 @@ function weiter(test = false) {
 }
 const wahlBereit = () => (zustand.phase === "einsatz" && einsatz.moment ? einsatz.momentSeit > 0.7
   : zustand.phase === "szene" && szene.wahl ? zustand.uhr - szene.wahl.t > 0.7 : false);
+// Sofort spuerbar, was eine Wahl war: Glut und Herzschlag, oder Asche und Wind
+function antworten(wahl) {
+  tonEreignis(wahl);
+  if (wahl === "naehe") { funkenStoss("glut", 50); zustand.aufgluehen = 1; }
+  else { funkenStoss("asche", 50); zustand.kaelte = 1; }
+}
 function entscheiden(seite) {
   // Zu frueh gedrueckt? Dann vormerken statt verwerfen
   const offen = (zustand.phase === "einsatz" && einsatz.moment) || (zustand.phase === "szene" && szene.wahl);
@@ -122,11 +130,13 @@ function entscheiden(seite) {
   if (zustand.phase === "einsatz" && einsatz.moment) {
     const wahl = seite === "links" ? "distanz" : "naehe";
     waehlen(einsatz, spiel, wahl);
-    tonEreignis(wahl);
+    antworten(wahl);
   }
   if (zustand.phase === "szene" && szene.wahl) {
+    const tuer = szene.wahl.art === "tuer";
     szeneWaehlen(szene, spiel, seite);
-    tonEreignis(seite === "rechts" && szene.nr === 3 && szene.stufe === "tuer" ? "naehe" : "seite");
+    tonEreignis(tuer ? (seite === "rechts" ? "naehe" : "distanz") : "seite");
+    if (szene.bemerkt) { tonEreignis("bemerkt"); szene.bemerkt = false; }
     stempeln();
     zustand.letzteAktion = zustand.uhr;
   }
@@ -236,8 +246,14 @@ function schritt(dt, lenkung) {
     for (const ereignis of einsatzSchritt(einsatz, dt, flug)) {
       if (ereignis.art === "treffer") zustand.erschuetterung = 1;
       if (ereignis.art === "knapp") zustand.erschuetterung = Math.max(zustand.erschuetterung, 0.35);
-      if (ereignis.art === "frei") tonEreignis("vorbei");
-      if (ereignis.art === "treffer" || ereignis.art === "knapp" || ereignis.art === "moment") tonEreignis(ereignis.art);
+      if (ereignis.art === "frei") {
+        tonEreignis("vorbei");
+        // Sauber durch: bei Bindung antwortet er, sonst atmet man nur aus
+        if (zustand.waerme > 0.5) { tonEreignis("antwort"); funkenStoss("glut", 22); zustand.aufgluehen = Math.max(zustand.aufgluehen, 0.6); flug.schlag += 0.4; }
+        else tonEreignis("aufatmen");
+      }
+      if (ereignis.art === "treffer") zustand.frisch = 1;
+      if (ereignis.art === "treffer" || ereignis.art === "knapp" || ereignis.art === "moment" || ereignis.art === "bemerkt") tonEreignis(ereignis.art);
     }
     // Pfeile hoert man kurz bevor sie da sind
     for (const h of einsatz.hindernisse) {
@@ -255,6 +271,9 @@ function schritt(dt, lenkung) {
     }
   }
   zustand.erschuetterung = Math.max(0, zustand.erschuetterung - dt * 1.6);
+  zustand.aufgluehen = Math.max(0, zustand.aufgluehen - dt * 0.6);
+  zustand.frisch = Math.max(0, zustand.frisch - dt * 0.4);
+  zustand.kaelte = Math.max(0, zustand.kaelte - dt * 1.1);
   const w = bildwahl();
   tonFuehren({
     tempo: flug.tempo, drehrate: zustand.drehrate || 0, waerme: zustand.waerme, schlag: flug.schlag, zeit: zustand.uhr,
@@ -279,7 +298,9 @@ function bild(t, dt) {
   const licht = {
     sonne: aufSchirm(kam, st.sonne, W, H),
     farbe: st.sonnenFarbe.map((x) => Math.pow(x, 1 / 2.2)), himmel: st.horizont.map((x) => Math.pow(x, 1 / 2.2)),
-    waerme: zustand.waerme, sparsam: !zustand.q.voll
+    waerme: zustand.waerme, sparsam: !zustand.q.voll,
+    aufgluehen: zustand.aufgluehen, frisch: zustand.frisch,
+    narben: spiel.narben.reduce((a, b) => a + (b || 0), 0) + (zustand.phase === "einsatz" ? einsatz.treffer : 0)
   };
   let blitz = 0;
   if (zustand.phase === "einsatz") blitz = hindernisseZeichnen(g2, W, H, einsatz, kam, licht, t, flug);
@@ -290,6 +311,9 @@ function bild(t, dt) {
     teilchenZeichnen(g2, W, H, teilchen, flug, dt, zustand.waerme, drehrate);
     dracheZeichnen(g2, W, H, flug, licht, t);
   }
+  stoesseZeichnen(g2, W, H, dt);
+  // Nach einer Distanz: kurz kaelteres Licht
+  if (zustand.kaelte > 0.01) { g2.fillStyle = `rgba(150,180,230,${zustand.kaelte * 0.12})`; g2.fillRect(0, 0, W, H); }
   regenZeichnen(g2, W, H, wahl.regen || 0, flug, dt, drehrate);
   // Ein naher Blitz aus den Hindernissen bringt seinen Donner mit
   if (blitz > 0.3 && zustand.uhr - (zustand.donnerZuletzt ?? -9) > 1.2) { tonEreignis("donner", Math.min(1, blitz)); zustand.donnerZuletzt = zustand.uhr; }

@@ -131,7 +131,8 @@ function formZeichnen(g, W, H, f, t) {
 
 /**
  * Zeichnet den Drachen. f = Flugzustand,
- * licht = { sonne: [x,y]|null, farbe: [r,g,b] 0..1, himmel: [r,g,b] 0..1, waerme 0..1, sparsam }
+ * licht = { sonne: [x,y]|null, farbe: [r,g,b] 0..1, himmel: [r,g,b] 0..1, waerme 0..1, sparsam,
+ *           aufgluehen 0..1, narben (Anzahl), frisch 0..1 }
  */
 export function dracheZeichnen(g, W, H, f, licht, t) {
   // Sparsam (niedrige Stufe): die Ebenen in halber Aufloesung. Die Kanten
@@ -180,16 +181,19 @@ export function dracheZeichnen(g, W, H, f, licht, t) {
   e.fillStyle = koerper; e.fillRect(0, ol, Wl, hl);
   e.globalCompositeOperation = "source-over";
 
-  // 4. Glut: feine Adern entlang der Halsseiten, im Herzschlag - nur bei Naehe
-  if (licht.waerme > 0.3) {
-    const puls = 0.55 + 0.45 * Math.pow(Math.max(0, Math.sin(t * 2.3)), 5);
+  // 4. Glut: feine Adern entlang der Halsseiten, im Herzschlag - nur bei Naehe.
+  // licht.aufgluehen (0..1) laesst sie nach einer Naehe kurz aufleuchten, auch
+  // wenn die Bindung sonst nicht reicht.
+  const glut = Math.max(licht.waerme - 0.3, 0) * 0.9 + (licht.aufgluehen || 0) * 0.75;
+  if (glut > 0.02) {
+    const puls = Math.min(1, 0.55 + 0.45 * Math.pow(Math.max(0, Math.sin(t * 2.3)), 5) + (licht.aufgluehen || 0) * 0.5);
     e.save();
     e.globalCompositeOperation = "source-atop";
     lage();
     e.lineCap = "round";
     // Der weiche Schein ist teuer; sparsam nur eine etwas breitere Linie
-    if (!licht.sparsam) { e.shadowColor = "rgba(255,110,30,1)"; e.shadowBlur = 16 * s * licht.waerme; }
-    e.strokeStyle = `rgba(255,${Math.round(120 + 70 * licht.waerme)},50,${(licht.waerme - 0.3) * 0.9 * puls})`;
+    if (!licht.sparsam) { e.shadowColor = "rgba(255,110,30,1)"; e.shadowBlur = 16 * s * Math.max(licht.waerme, licht.aufgluehen || 0); }
+    e.strokeStyle = `rgba(255,${Math.round(120 + 70 * licht.waerme)},50,${Math.min(1, glut * puls)})`;
     e.lineWidth = (licht.sparsam ? 3 : 2.2) * s;
     for (const seite of [-1, 1]) for (const lage of [0.55, 0.8]) {
       e.beginPath();
@@ -200,6 +204,36 @@ export function dracheZeichnen(g, W, H, f, licht, t) {
         const x = q.x + seite * q.nx * b + zitter, y = q.y + seite * q.ny * b;
         i ? e.lineTo(x, y) : e.moveTo(x, y);
       }
+      e.stroke();
+    }
+    e.restore();
+  }
+
+  // 5. Narben: jede Narbe eine helle, gezackte Linie an Hals oder Fluegel, die
+  // bleibt. Die neueste glueht kurz nach (licht.frisch 0..1).
+  const narben = Math.min(14, licht.narben || 0);
+  if (narben) {
+    e.save();
+    e.globalCompositeOperation = "source-atop";
+    lage();
+    e.lineCap = "round"; e.lineJoin = "round";
+    for (let i = 0; i < narben; i++) {
+      const z = (n) => { const x = Math.sin((i + 1) * 91.7 + n * 13.3) * 43758.5453; return x - Math.floor(x); };
+      let x0, y0, rx, ry;
+      if (i % 3 === 2) {
+        // am Fluegel, nahe der Schulter
+        const seite = z(1) < 0.5 ? -1 : 1;
+        x0 = W / 2 + seite * (0.14 + z(2) * 0.16) * W; y0 = H * (0.88 + z(3) * 0.05); rx = seite * (55 + z(4) * 30) * s; ry = -10 * s;
+      } else {
+        const q = bez(...geo.p, 0.18 + z(2) * 0.5), seite = z(1) < 0.5 ? -1 : 1;
+        const b = (175 * Math.pow(1 - 0.4, 1.25) + 30) * s * (0.2 + z(3) * 0.6);
+        x0 = q.x + seite * q.nx * b; y0 = q.y + seite * q.ny * b; rx = seite * (34 + z(5) * 20) * s; ry = (z(4) - 0.5) * 40 * s;
+      }
+      const neu = i === narben - 1 ? (licht.frisch || 0) : 0;
+      e.strokeStyle = neu > 0.05 ? `rgba(255,${Math.round(150 + 60 * (1 - neu))},${Math.round(120 + 80 * (1 - neu))},${0.6 + 0.4 * neu})` : "rgba(232,214,204,0.62)";
+      e.lineWidth = (2.2 + neu * 1.8) * s;
+      e.beginPath(); e.moveTo(x0, y0);
+      for (let j = 1; j <= 5; j++) e.lineTo(x0 + rx * j / 5 + (z(5 + j) - 0.5) * 9 * s, y0 + ry * j / 5 + (z(9 + j) - 0.5) * 9 * s);
       e.stroke();
     }
     e.restore();
@@ -254,6 +288,42 @@ export function teilchenZeichnen(g, W, H, teilchen, f, dt, waerme, drehrate) {
     const a = Math.min(1, (8 - p.z) / 3) * (0.55 + 0.45 * Math.sin(f.zeit * 9 + p.flacker));
     g.globalAlpha = Math.max(0, a) * (waerme > 0.4 ? 0.9 : 0.5);
     g.drawImage(waerme > 0.4 ? funke.glut : funke.asche, sx - r * 2, sy - r * 2, r * 4, r * 4);
+  }
+  g.restore();
+}
+
+// --- Ein Stoss Funken oder Asche -------------------------------------------------
+// Nach einer Wahl oder einem sauberen Ausweichen: Glut stiebt vom Hals, oder
+// kalte Asche wirbelt am Bild vorbei.
+const stoesse = [];
+export function funkenStoss(art, anzahl = 40) {
+  for (let i = 0; i < anzahl; i++) {
+    const w = Math.random() * Math.PI * 2, v = 0.4 + Math.random() * 1.2;
+    stoesse.push({ art, x: (Math.random() - 0.5) * 0.4, y: -0.25 + Math.random() * 0.3, z: 1.4 + Math.random() * 0.8,
+      vx: Math.cos(w) * v, vy: Math.sin(w) * v * 0.6 + (art === "glut" ? 0.5 : -0.2), leben: 1, dauer: 0.9 + Math.random() * 0.7 });
+  }
+}
+export function stoesseZeichnen(g, W, H, dt) {
+  if (!stoesse.length) return;
+  if (!funke) funke = { glut: funkenbild("rgba(255,170,70,1)"), asche: funkenbild("rgba(200,215,240,1)") };
+  g.save();
+  for (let i = stoesse.length - 1; i >= 0; i--) {
+    const p = stoesse[i];
+    p.leben -= dt / p.dauer;
+    if (p.leben <= 0) { stoesse.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z -= dt * 0.8; p.vx *= 0.98; p.vy -= dt * (p.art === "glut" ? -0.1 : 0.4);
+    const sx = W / 2 + p.x / p.z * H * 0.68, sy = H * 0.5 - p.y / p.z * H * 0.68;
+    const r = H / 1000 * 4.5 / p.z;
+    const a = Math.min(1, p.leben * 1.5);
+    g.globalCompositeOperation = p.art === "glut" ? "lighter" : "source-over";
+    g.globalAlpha = a * (p.art === "glut" ? 0.9 : 0.55);
+    g.drawImage(p.art === "glut" ? funke.glut : funke.asche, sx - r * 2, sy - r * 2, r * 4, r * 4);
+    // Ein heller Kern mit kurzem Schweif: so liest es sich auch vor hellem Himmel
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = a;
+    g.strokeStyle = p.art === "glut" ? "rgb(255,214,140)" : "rgb(222,230,242)";
+    g.lineWidth = Math.max(1, r * 0.6); g.lineCap = "round";
+    g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx - p.vx * r * 2.2, sy + p.vy * r * 2.2); g.stroke();
   }
   g.restore();
 }

@@ -38,6 +38,8 @@ const bilder = [
   // Zwischenszenen: weitergeblaettert; zufall=0 erzwingt die Entdeckung, 1 schliesst sie aus
   ["08-szene1-ruhig", "szene=1&zufall=1&schritte=2"], ["09-szene2-entdeckt", "szene=2&zufall=0&verdacht=50&schritte=2"],
   ["10-szene3-folge", "szene=3&zufall=0&verdacht=50&schritte=3&wahl=links"], ["11-szene4-tuer", "szene=4&schritte=2", true],
+  // Vorfuehrmodus: Auswahl auf dem Titel, Knoepfe im Einsatz
+  ["17-vorfuehren-titel", "vorfuehren"], ["18-vorfuehren-einsatz", "vorfuehren&einsatz=3&uhr=30"],
   // Ausgaenge, vollstaendig aufgedeckt
   ...["grenze", "geheimnis", "tribunal", "pflicht", "sturz"].map((n, i) => [`${12 + i}-ausgang-${n}`, `ausgang=${n}&schritte=2`])
 ];
@@ -76,7 +78,7 @@ for (const [name, q] of [["21-2d-titel", "titel"], ["22-2d-e1-felsen", "einsatz=
   const tel = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   tel.on("pageerror", (e) => fehler.push("hochkant: " + e.message));
   for (const [name, q] of [["30-tel-titel", "titel"], ["31-tel-e1-felsen", "einsatz=1&uhr=29.5"], ["32-tel-e1-moment", "einsatz=1&uhr=50"],
-    ["33-tel-e2-pfeile", "einsatz=2&uhr=26&bindung=60"], ["34-tel-szene4", "szene=4&schritte=2"], ["35-tel-grenze", "ausgang=grenze&schritte=2"]]) {
+    ["33-tel-e2-pfeile", "einsatz=2&uhr=26&bindung=60"], ["34-tel-szene4", "szene=4&schritte=2"], ["35-tel-grenze", "ausgang=grenze&schritte=2"], ["36-tel-vorfuehren", "vorfuehren"]]) {
     await standbild(name, q, "hoch", tel, "");
   }
   await tel.close();
@@ -126,6 +128,18 @@ await seite.waitForFunction(() => window.__flug.einsatz.zeile?.wer === "bemerkt"
   .catch(() => fehler.push("Live: bemerkte Nähe zeigt kein Zeichen"));
 await seite.waitForTimeout(1200);
 await seite.screenshot({ path: `${ORDNER}/22-bemerkt-live.png` });
+
+// Live: Vorfuehren - V auf dem Titel, 3 waehlt den dritten Einsatz, N springt zum Moment, B schaltet um
+await seite.goto(`${basis}?q=niedrig`);
+await seite.waitForTimeout(800);
+await seite.keyboard.press("v"); await seite.keyboard.press("3");
+await seite.waitForTimeout(300);
+const vor = await seite.evaluate(() => ({ phase: window.__flug.zustand.phase, nr: window.__flug.einsatz?.nr, b: window.__flug.spiel.bindung }));
+if (vor.phase !== "einsatz" || vor.nr !== 2) fehler.push(`Vorführen: Taste 3 startet nicht Einsatz 3 (${JSON.stringify(vor)})`);
+await seite.keyboard.press("n");
+await seite.waitForFunction(() => !!window.__flug.einsatz.moment, null, { timeout: 5000 }).catch(() => fehler.push("Vorführen: N springt nicht zum nächsten Moment"));
+await seite.keyboard.press("b");
+if (await seite.evaluate(() => window.__flug.spiel.bindung) === vor.b) fehler.push("Vorführen: B schaltet die Bindung nicht um");
 
 // Live: eine Zwischenszene durchblaettern, entdeckt werden, Tamsin decken lassen, weiter in Einsatz 2
 await seite.goto(`${basis}?szene=1&zufall=0&verdacht=50&q=niedrig`);

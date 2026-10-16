@@ -154,3 +154,22 @@ export function seiteZeichnen(g, W, H, s) {
   }
   g.restore();
 }
+
+/**
+ * Ein schlichter Knopf aus Text, fuer den Vorfuehrmodus. Gibt die Flaeche
+ * zurueck (Leinwandpixel), damit main.js Klicks zuordnen kann.
+ */
+export function knopf(g, W, H, text, x, y, { faktor = 0.72, ausrichtung = "left", aktiv = false, a = 1 } = {}) {
+  const fs = groesse(W, H, faktor);
+  g.save();
+  g.font = `${aktiv ? 600 : 500} ${fs}px ${SCHRIFT}`;
+  g.textAlign = ausrichtung; g.textBaseline = "alphabetic";
+  const b = g.measureText(text).width;
+  const links = ausrichtung === "left" ? x : ausrichtung === "right" ? x - b : x - b / 2;
+  g.shadowColor = `rgba(0,0,0,${0.6 * a})`; g.shadowBlur = fs * 0.5;
+  g.fillStyle = aktiv ? `rgba(255,214,170,${a})` : `rgba(240,234,224,${0.78 * a})`;
+  g.fillText(text, x, y);
+  if (aktiv) { g.shadowBlur = 0; g.fillRect(links, y + fs * 0.18, b, Math.max(1, fs * 0.06)); }
+  g.restore();
+  return { x: links - fs * 0.3, y: y - fs * 1.05, b: b + fs * 0.6, h: fs * 1.5 };
+}

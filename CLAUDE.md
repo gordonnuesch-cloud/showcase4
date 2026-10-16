@@ -61,5 +61,6 @@ tools/notnagel.mjs  baut beim Build den ganzen Text als verstecktes HTML
 src/einsatzbild.js  Felsnadeln, Pfeile, Blitze, Reiter im Bild; Regen
 src/ton.js        aller Klang aus Web Audio: Wind, Regen, Flügel, Herz, Einzelklänge
 src/schrift.js    Text im Canvas: Zeilen, Momente, Textseiten
-src/main.js       Phasen, Schleife, Eingabe (?einsatz= ?szene= ?ausgang= ?erprobung ?frei)
+src/main.js       Phasen, Schleife, Eingabe, Vorführmodus (Taste V auf dem Titel)
+                  Erproben: ?einsatz= ?szene= ?ausgang= ?erprobung ?frei ?vorfuehren
 ```

@@ -9,7 +9,7 @@
 // Erproben:   ?einsatz=1..5 · ?szene=1..4 · ?ausgang=grenze|geheimnis|tribunal|pflicht|sturz
 //             ?erprobung (Werte unten, [ ] Bindung, Q) · ?frei (freier Flug, 1-5 Tageszeit)
 //             ?bindung= ?verdacht= ?zufall=0..1 (Entdeckung erzwingen oder ausschliessen) ?narben=2,1,…
-//             ?ohnewebgl (die 2D-Fassung des Himmels)
+//             ?ohnewebgl (die 2D-Fassung des Himmels) · ?vorfuehren (Auswahl fuer Praesentationen; auch Taste V)
 // Testbilder: ?t=Sek, dazu ?uhr=Sek (Einsatz vorrechnen) oder ?schritte=n (weiterblaettern)
 
 import { himmelErstellen, QUALITAET } from "./himmel.js";
@@ -21,7 +21,7 @@ import { neuesSpiel, einsatzBeginnen, einsatzSchritt, einsatzAbschliessen, waehl
 import { szeneBeginnen, szeneWeiter, szeneWaehlen, verhaftet, ausgang } from "./geschichte.js";
 import { hindernisseZeichnen, regenSchleier, regenZeichnen } from "./einsatzbild.js";
 import { tonStarten, tonFuehren, tonEreignis, stummSchalten, istStumm, tonProbe } from "./ton.js";
-import { zeileZeichnen, momentZeichnen, titelZeichnen, seiteZeichnen } from "./schrift.js";
+import { zeileZeichnen, momentZeichnen, titelZeichnen, seiteZeichnen, knopf } from "./schrift.js";
 import { TITEL, AUSGAENGE, NOCHMAL } from "./data/szenen.js";
 
 const param = new URLSearchParams(location.search);
@@ -45,8 +45,11 @@ const zustand = {
   q: QUALITAET[param.get("q")] || QUALITAET.hoch,
   automatisch: !param.has("q"),
   fps: 0, erschuetterung: 0, blitz: 0, letzteAktion: -1, leuchten: 6,
-  aufgluehen: 0, frisch: 0, kaelte: 0      // kurze Antworten auf Wahl, Ausweichen, Treffer
+  aufgluehen: 0, frisch: 0, kaelte: 0,     // kurze Antworten auf Wahl, Ausweichen, Treffer
+  vorfuehren: param.has("vorfuehren"), vorWarm: true
 };
+// Klickbare Flaechen dieses Bildes (Vorfuehrmodus), in Leinwandpixeln
+let knoepfe = [];
 let einsatz = null, szene = null, ende = null;
 
 // Erst WebGL; geht das nicht, eine ruhige 2D-Fassung auf frischer Leinwand
@@ -104,7 +107,7 @@ function weiter(test = false) {
   zustand.letzteAktion = zustand.uhr;
   const p = zustand.phase;
   if (p !== "einsatz" && p !== "frei") tonEreignis("seite");
-  if (p === "titel") einsatzStarten(0);
+  if (p === "titel") zustand.vorfuehren ? vorEinsatz(0) : einsatzStarten(0);
   else if (p === "szene" && !szene.wahl) {
     szeneWeiter(szene, spiel, spiel.zufall);
     stempeln();
@@ -116,6 +119,43 @@ function weiter(test = false) {
 }
 const wahlBereit = () => (zustand.phase === "einsatz" && einsatz.moment ? einsatz.momentSeit > 0.7
   : zustand.phase === "szene" && szene.wahl ? zustand.uhr - szene.wahl.t > 0.7 : false);
+// --- Vorfuehren -----------------------------------------------------------------
+// Fuer Praesentationen: jeder Einsatz, die Szene am Zelt und jeder Ausgang
+// direkt; im Einsatz zum naechsten Moment springen, Bindung kalt/warm umschalten.
+const VOR = { kalt: { bindung: 15, verdacht: 10 }, warm: { bindung: 85, verdacht: 30 } };
+function vorWerte() { const w = VOR[zustand.vorWarm ? "warm" : "kalt"]; spiel.bindung = w.bindung; spiel.verdacht = w.verdacht; spiel.narben = []; spiel.wahlen = []; }
+function vorEinsatz(nr) { vorWerte(); zustand.waerme = kennwerte(spiel.bindung).waerme; einsatzStarten(nr); }
+function vorSzene() { vorWerte(); szeneStarten(3); }
+function vorBindung() {
+  zustand.vorWarm = spiel.bindung < 50;
+  spiel.bindung = VOR[zustand.vorWarm ? "warm" : "kalt"].bindung;
+}
+function naechsterMoment() {
+  if (zustand.phase === "einsatz" && !einsatz.moment) {
+    const i = einsatz.offen.findIndex((x) => x.moment);
+    const ziel = i >= 0 ? einsatz.offen[i].t - 0.3 : einsatz.d.dauer;
+    einsatz.offen = i >= 0 ? einsatz.offen.slice(i) : [];
+    einsatz.hindernisse = []; einsatz.zeile = null; einsatz.nachZeile = null;
+    einsatz.uhr = Math.max(einsatz.uhr, ziel);
+  } else if (zustand.phase === "szene" && !szene.wahl) {
+    for (let i = 0; i < 8 && !szene.wahl && !szene.fertig; i++) { zustand.letzteAktion = -1; weiter(true); }
+    if (zustand.phase === "szene") stempeln();
+  }
+}
+const AUSGANG_TASTEN = { g: "grenze", h: "geheimnis", t: "tribunal", p: "pflicht", s: "sturz" };
+function vorTaste(k) {
+  if (zustand.phase === "titel") {
+    if (/^[1-5]$/.test(k)) vorEinsatz(Number(k) - 1);
+    else if (k === "z") vorSzene();
+    else if (AUSGANG_TASTEN[k]) ausgangZeigen(AUSGANG_TASTEN[k]);
+    else if (k === "b") zustand.vorWarm = !zustand.vorWarm;
+  } else {
+    if (k === "n") naechsterMoment();
+    if (k === "b" && zustand.phase === "einsatz") vorBindung();
+    if (k === "escape") phase("titel");
+  }
+}
+
 // Sofort spuerbar, was eine Wahl war: Glut und Herzschlag, oder Asche und Wind
 function antworten(wahl) {
   tonEreignis(wahl);
@@ -150,6 +190,8 @@ addEventListener("keydown", (e) => {
   if (!e.repeat && (k === "arrowleft" || k === "a")) entscheiden("links");
   if (!e.repeat && (k === "arrowright" || k === "d")) entscheiden("rechts");
   if (!e.repeat && (k === " " || k === "enter")) weiter();
+  if (!e.repeat && k === "v" && zustand.phase === "titel") zustand.vorfuehren = !zustand.vorfuehren;
+  if (!e.repeat && zustand.vorfuehren) vorTaste(k);
   if (erprobung || frei) {
     if (/^[1-5]$/.test(e.key)) zustand.zeit = Number(e.key) - 1;
     if (e.key === "[") spiel.bindung = Math.max(0, spiel.bindung - 10);
@@ -170,6 +212,9 @@ vorn.addEventListener("pointerdown", (e) => {
   tonStarten();
   const f = schalterFlaeche();
   if (e.clientX > f.x && e.clientY < f.y + f.b) { stummSchalten(); return; }
+  const d = vorn.width / innerWidth, px = e.clientX * d, py = e.clientY * d;
+  const getroffen = knoepfe.find((k) => px >= k.x && px <= k.x + k.b && py >= k.y && py <= k.y + k.h);
+  if (getroffen) { getroffen.aktion(); return; }
   const offen = (zustand.phase === "einsatz" && einsatz.moment) || (zustand.phase === "szene" && szene.wahl);
   if (offen) return entscheiden(e.clientX < innerWidth / 2 ? "links" : "rechts");
   if (zustand.phase !== "einsatz" && zustand.phase !== "frei") return weiter();
@@ -343,6 +388,7 @@ function bild(t, dt) {
     seiteZeichnen(g2, W, H, { kopf: ende.d.titel, gross: true, absaetze, fuss: alle ? NOCHMAL : "Weiter: Leertaste oder Tippen", jetzt, seit, schleier: wahl.schleier });
   }
 
+  vorfuehrZeichnen(W, H);
   schalterZeichnen(W, H);
 
   if (erprobung || frei) {
@@ -353,6 +399,42 @@ function bild(t, dt) {
       : zustand.phase === "frei" ? `Freier Flug · ${TAGESZEITEN[zustand.zeit].name}` : zustand.phase;
     g2.fillText(`${wo} · Bindung ${spiel.bindung} · Verdacht ${spiel.verdacht} · Narben ${spiel.narben.join("/")} · ${zustand.q.name}${zustand.fps ? ` · ${Math.round(zustand.fps)} fps` : ""}`, H * 0.03, H * 0.97);
   }
+}
+
+// Vorfuehrmodus: auf dem Titel die Auswahl, im Spiel zwei kleine Knoepfe oben links
+function vorfuehrZeichnen(W, H) {
+  knoepfe = [];
+  const neu = (r, aktion) => knoepfe.push({ ...r, aktion });
+  const p = zustand.phase;
+  if (p === "titel") {
+    if (!zustand.vorfuehren) {
+      neu(knopf(g2, W, H, "Vorführen", W - H * 0.04, H * 0.95, { ausrichtung: "right", faktor: 0.6, a: 0.6 }), () => { zustand.vorfuehren = true; });
+      return;
+    }
+    const fs = Math.min(H * 0.034, W * 0.052), x0 = W / 2 - Math.min(W * 0.42, fs * 15), sp = Math.min(W * 0.2, fs * 5.2);
+    let y = H * 0.66;
+    const zeile = (titel, eintraege) => {
+      knopf(g2, W, H, titel, x0, y, { faktor: 0.6, a: 0.6 });
+      let x = x0 + sp;
+      for (const [text, aktion, aktiv] of eintraege) {
+        g2.font = `600 ${fs * 0.72}px "Cormorant Garamond", Georgia, serif`;
+        if (x + g2.measureText(text).width > W - fs * 0.8) { x = x0 + sp; y += fs * 1.3; }   // hochkant umbrechen
+        const r = knopf(g2, W, H, text, x, y, { aktiv }); neu(r, aktion); x = r.x + r.b + fs * 0.4;
+      }
+      y += fs * 1.55;
+    };
+    zeile("Bindung", [["kalt", () => { zustand.vorWarm = false; }, !zustand.vorWarm], ["warm", () => { zustand.vorWarm = true; }, zustand.vorWarm]]);
+    zeile("Einsatz", [1, 2, 3, 4, 5].map((n) => [String(n), () => vorEinsatz(n - 1)]));
+    zeile("Szene", [["Das Zelt", vorSzene]]);
+    zeile("Ausgang", Object.entries(AUSGAENGE).map(([name, a]) => [a.titel.replace(/^(Das|Der|Über die) /, ""), () => ausgangZeigen(name)]));
+    knopf(g2, W, H, "Tasten: B · 1–5 · Z · G H T P S · im Spiel N nächster Moment, B kalt/warm, Esc zurück", W / 2, y + fs * 0.4, { ausrichtung: "center", faktor: 0.5, a: 0.5 });
+    return;
+  }
+  if (!zustand.vorfuehren) return;
+  const x = H * 0.03, y = H * 0.06;
+  let r = knopf(g2, W, H, "‹ Auswahl", x, y, { faktor: 0.6, a: 0.75 }); neu(r, () => phase("titel"));
+  if (p === "einsatz" || p === "szene") { r = knopf(g2, W, H, "Nächster Moment ›", r.x + r.b + H * 0.02, y, { faktor: 0.6, a: 0.75 }); neu(r, naechsterMoment); }
+  if (p === "einsatz") { r = knopf(g2, W, H, `Bindung ${spiel.bindung >= 50 ? "warm" : "kalt"}`, r.x + r.b + H * 0.02, y, { faktor: 0.6, a: 0.75, aktiv: true }); neu(r, vorBindung); }
 }
 
 // Lautsprecher als Strichzeichnung; durchgestrichen, wenn stumm
